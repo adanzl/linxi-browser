@@ -94,16 +94,16 @@ class SearchEngineProvider @Inject constructor(
      */
     suspend fun provideAllSearchEngines(): List<BaseSearchEngine> = listOf(
         CustomSearch(userPreferencesDataStore.searchUrl.getUnsafe()),
-        GoogleSearch(),
-        AskSearch(),
+        // GoogleSearch(),
+        // AskSearch(),
         BingSearch(),
-        YahooSearch(),
-        StartPageSearch(),
-        StartPageMobileSearch(),
-        DuckSearch(),
-        DuckLiteSearch(),
+        // YahooSearch(),
+        // StartPageSearch(),
+        // StartPageMobileSearch(),
+        // DuckSearch(),
+        // DuckLiteSearch(),
         BaiduSearch(),
-        YandexSearch(),
+        // YandexSearch(),
         NaverSearch()
     )
 

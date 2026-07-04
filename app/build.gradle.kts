@@ -2,7 +2,7 @@ plugins {
     id("com.android.application")
     id("com.github.ben-manes.versions")
     id("com.google.devtools.ksp") version "2.3.9"
-    id("com.anthonycr.plugins.mezzanine") version "2.4.0"
+    //id("com.anthonycr.plugins.mezzanine") version "2.4.0"  // Disabled: KSP2 compatibility issue
     id("com.autonomousapps.dependency-analysis") version "3.16.0"
     id("com.squareup.sort-dependencies") version "0.19.0"
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.0"
@@ -45,6 +45,11 @@ android {
             setProguardFiles(listOf("proguard-project.txt"))
             enableUnitTestCoverage = false
             enableAndroidTestCoverage = false
+            
+            // 最小化构建：只保留 arm64-v8a 架构
+            ndk {
+                abiFilters.add("arm64-v8a")
+            }
         }
 
         named("release") {
@@ -70,7 +75,7 @@ android {
         create("lightningPlus") {
             dimension = "capabilities"
             buildConfigField("boolean", "FULL_VERSION", "Boolean.parseBoolean(\"true\")")
-            applicationId = "acr.browser.lightning"
+            applicationId = "acr.browser.lightning.leo"
             versionCode = 101
         }
 
@@ -78,7 +83,7 @@ android {
             create("lightningLite") {
                 dimension = "capabilities"
                 buildConfigField("boolean", "FULL_VERSION", "Boolean.parseBoolean(\"false\")")
-                applicationId = "acr.browser.barebones"
+                applicationId = "acr.browser.barebones.leo"
                 versionCode = 102
             }
         }
@@ -165,11 +170,11 @@ dependencies {
     testImplementation("org.robolectric:annotations:$robolectric")
     testImplementation("org.robolectric:robolectric:$robolectric")
 
-    ksp("com.anthonycr.mezzanine:processor:$mezzanineVersion")
+    //ksp("com.anthonycr.mezzanine:processor:$mezzanineVersion")  // Disabled
     ksp("com.google.dagger:dagger-compiler:$daggerVersion")
 }
 
-mezzanine {
+/* mezzanine {
     files = files(
         "src/main/html/list.html",
         "src/main/html/bookmarks.html",
@@ -178,7 +183,7 @@ mezzanine {
         "src/main/js/TextReflow.js",
         "src/main/js/ThemeColor.js"
     )
-}
+} */
 
 kotlin {
     jvmToolchain(21)

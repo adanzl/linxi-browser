@@ -44,7 +44,7 @@ import android.os.Looper
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import androidx.core.content.getSystemService
-import com.anthonycr.mezzanine.mezzanine
+import acr.browser.lightning.utils.AssetReader
 import dagger.Module
 import dagger.Provides
 import kotlinx.coroutines.CoroutineScope
@@ -176,22 +176,34 @@ class AppModule {
     }
 
     @Provides
-    fun providesListPageReader(): ListPageReader = mezzanine()
+    fun providesListPageReader(application: Application): ListPageReader = object : ListPageReader {
+        override fun provideHtml(): String = AssetReader.getListPageHtml(application)
+    }
 
     @Provides
-    fun providesHomePageReader(): HomePageReader = mezzanine()
+    fun providesHomePageReader(application: Application): HomePageReader = object : HomePageReader {
+        override fun provideHtml(): String = AssetReader.getHomepageHtml(application)
+    }
 
     @Provides
-    fun providesBookmarkPageReader(): BookmarkPageReader = mezzanine()
+    fun providesBookmarkPageReader(application: Application): BookmarkPageReader = object : BookmarkPageReader {
+        override fun provideHtml(): String = AssetReader.getBookmarksHtml(application)
+    }
 
     @Provides
-    fun providesTextReflow(): TextReflow = mezzanine()
+    fun providesTextReflow(application: Application): TextReflow = object : TextReflow {
+        override fun provideJs(): String = AssetReader.getTextReflowJs(application)
+    }
 
     @Provides
-    fun providesThemeColor(): ThemeColor = mezzanine()
+    fun providesThemeColor(application: Application): ThemeColor = object : ThemeColor {
+        override fun provideJs(): String = AssetReader.getThemeColorJs(application)
+    }
 
     @Provides
-    fun providesInvertPage(): InvertPage = mezzanine()
+    fun providesInvertPage(application: Application): InvertPage = object : InvertPage {
+        override fun provideJs(): String = AssetReader.getInvertPageJs(application)
+    }
 
     @DefaultTabTitle
     @Provides
