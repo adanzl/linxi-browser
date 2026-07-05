@@ -14,6 +14,7 @@ android {
     defaultConfig {
         minSdk = 26
         targetSdk = 36
+        versionCode = 103
         versionName = "5.1.0"
         vectorDrawables.useSupportLibrary = true
     }
@@ -22,10 +23,10 @@ android {
 
     signingConfigs {
         getByName("debug") {
-            storeFile = file("../deploy/release.keystore")
-            storePassword = "lightning123"
-            keyAlias = "lightning"
-            keyPassword = "lightning123"
+            storeFile = file("../deploy/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
         }
         create("release") {
             storeFile = file("../deploy/release.keystore")
@@ -38,11 +39,6 @@ android {
     sourceSets {
         create("lightningPlus").apply {
             setRoot("src/LightningPlus")
-        }
-        if (!isCi) {
-            create("lightningLite").apply {
-                setRoot("src/LightningLite")
-            }
         }
     }
 
@@ -93,15 +89,6 @@ android {
             buildConfigField("boolean", "FULL_VERSION", "Boolean.parseBoolean(\"true\")")
             applicationId = "acr.browser.lightning.leo"
             versionCode = 101
-        }
-
-        if (!isCi) {
-            create("lightningLite") {
-                dimension = "capabilities"
-                buildConfigField("boolean", "FULL_VERSION", "Boolean.parseBoolean(\"false\")")
-                applicationId = "acr.browser.barebones.leo"
-                versionCode = 102
-            }
         }
     }
     packaging {

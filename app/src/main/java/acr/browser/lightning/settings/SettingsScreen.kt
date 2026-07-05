@@ -11,21 +11,25 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -67,26 +71,43 @@ fun SettingsScreen(
     onNavigate: (SettingsNavigation) -> Unit
 ) {
     Scaffold(
+        containerColor = Color(0xFFF2F2F7),
         topBar = {
             TopAppBar(
+                modifier = Modifier.height(48.dp),
                 title = {
                     Text(stringResource(R.string.settings))
                 }
             )
         }
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .fillMaxSize(),
-            contentAlignment = Alignment.TopCenter
+                .fillMaxSize()
         ) {
-            Column(
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color = Color(0xFFD8D8D8)
+            )
+            Box(
                 modifier = Modifier
-                    .widthIn(max = 600.dp)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
+                    .fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
             ) {
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 600.dp)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Surface(
+                    color = Color.White,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column {
             SettingsClickable(
                 SettingsClickableState(
                     title = stringResource(R.string.settings_child_mode),
@@ -135,8 +156,11 @@ fun SettingsScreen(
                 }
             }
             }
+            }
+        }
         }
     }
+}
 }
 
 @Composable
@@ -144,36 +168,54 @@ fun SettingsClickable(
     state: SettingsClickableState,
     onClick: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = state.enabled) { onClick() },
-        verticalArrangement = Arrangement.Center
+    Surface(
+        color = Color.White,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.Start
-        ) {
-            Text(
-                state.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = if (state.enabled) {
-                    Color.Unspecified
-                } else {
-                    ListItemDefaults.colors().disabledHeadlineColor
-                }
-            )
-            state.summary?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (state.enabled) {
-                        Color.Unspecified
-                    } else {
-                        ListItemDefaults.colors().disabledHeadlineColor
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = state.enabled) { onClick() }
+                    .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        state.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (state.enabled) {
+                            Color.Unspecified
+                        } else {
+                            ListItemDefaults.colors().disabledHeadlineColor
+                        }
+                    )
+                    state.summary?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (state.enabled) {
+                                Color.Unspecified
+                            } else {
+                                ListItemDefaults.colors().disabledHeadlineColor
+                            }
+                        )
                     }
+                }
+                Text(
+                    "›",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color(0xFFC0C0C0)
                 )
             }
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                thickness = 1.dp,
+                color = Color(0xFFD8D8D8)
+            )
         }
     }
 }
@@ -184,55 +226,61 @@ fun SettingsToggle(
     onToggle: (Boolean) -> Unit
 ) {
     var toggleState by remember { mutableStateOf(state.isChecked) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = state.enabled) {
-                toggleState = !toggleState
-                onToggle(toggleState)
-            },
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        color = Color.White,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
-                .weight(1f, false),
-            horizontalAlignment = Alignment.Start
-        ) {
-            Text(
-                state.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = if (state.enabled) {
-                    Color.Unspecified
-                } else {
-                    ListItemDefaults.colors().disabledHeadlineColor
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = state.enabled) {
+                        toggleState = !toggleState
+                        onToggle(toggleState)
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(start = 16.dp, top = 14.dp, bottom = 14.dp)
+                        .weight(1f),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        state.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (state.enabled) {
+                            Color.Unspecified
+                        } else {
+                            ListItemDefaults.colors().disabledHeadlineColor
+                        }
+                    )
+                    state.summary?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (state.enabled) {
+                                Color.Unspecified
+                            } else {
+                                ListItemDefaults.colors().disabledHeadlineColor
+                            }
+                        )
+                    }
                 }
-            )
-            state.summary?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (state.enabled) {
-                        Color.Unspecified
-                    } else {
-                        ListItemDefaults.colors().disabledHeadlineColor
+                Switch(
+                    modifier = Modifier.padding(end = 12.dp),
+                    enabled = state.enabled,
+                    checked = toggleState,
+                    onCheckedChange = {
+                        toggleState = it
+                        onToggle(toggleState)
                     }
                 )
             }
-        }
-        Column(
-            modifier = Modifier
-                .padding(16.dp),
-            horizontalAlignment = Alignment.End
-        ) {
-            Switch(
-                enabled = state.enabled,
-                checked = toggleState,
-                onCheckedChange = {
-                    toggleState = it
-                    onToggle(toggleState)
-                }
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                thickness = 1.dp,
+                color = Color(0xFFD8D8D8)
             )
         }
     }

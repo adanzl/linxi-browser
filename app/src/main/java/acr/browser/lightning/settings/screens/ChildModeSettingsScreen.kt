@@ -8,15 +8,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -26,9 +27,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -45,8 +46,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import javax.inject.Inject
@@ -157,8 +160,10 @@ fun ChildModeSettingsScreen(
     }
 
     Scaffold(
+        containerColor = Color(0xFFF2F2F7),
         topBar = {
             TopAppBar(
+                modifier = Modifier.height(48.dp),
                 title = { Text(stringResource(R.string.settings_child_mode)) }
             )
         }
@@ -174,121 +179,168 @@ fun ChildModeSettingsScreen(
                     .widthIn(max = 600.dp)
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
+                Surface(
+                    color = Color.White,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column {
             // Toggle: Enable child mode
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        val newValue = !childModeEnabled
-                        if (newValue && pinCode.isNotEmpty()) {
-                            pendingPinAction = "toggle"
-                            pinVerifyInput = ""
-                            pinVerifyError = false
-                            showPinVerifyDialog = true
-                        } else {
-                            childModeEnabled = newValue
-                            scope.launch { childModeSettingsScreen.setChildModeEnabled(newValue) }
-                        }
-                    }
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            Surface(
+                color = Color.White,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    stringResource(R.string.child_mode_enable),
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Switch(
-                    checked = childModeEnabled,
-                    onCheckedChange = {
-                        if (it && pinCode.isNotEmpty()) {
-                            pendingPinAction = "toggle"
-                            pinVerifyInput = ""
-                            pinVerifyError = false
-                            showPinVerifyDialog = true
-                        } else {
-                            childModeEnabled = it
-                            scope.launch { childModeSettingsScreen.setChildModeEnabled(it) }
-                        }
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val newValue = !childModeEnabled
+                                if (newValue && pinCode.isNotEmpty()) {
+                                    pendingPinAction = "toggle"
+                                    pinVerifyInput = ""
+                                    pinVerifyError = false
+                                    showPinVerifyDialog = true
+                                } else {
+                                    childModeEnabled = newValue
+                                    scope.launch { childModeSettingsScreen.setChildModeEnabled(newValue) }
+                                }
+                            }
+                            .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            stringResource(R.string.child_mode_enable),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Switch(
+                            checked = childModeEnabled,
+                            onCheckedChange = {
+                                if (it && pinCode.isNotEmpty()) {
+                                    pendingPinAction = "toggle"
+                                    pinVerifyInput = ""
+                                    pinVerifyError = false
+                                    showPinVerifyDialog = true
+                                } else {
+                                    childModeEnabled = it
+                                    scope.launch { childModeSettingsScreen.setChildModeEnabled(it) }
+                                }
+                            }
+                        )
                     }
-                )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        thickness = 1.dp,
+                        color = Color(0xFFD8D8D8)
+                    )
+                }
             }
 
             // Whitelist section
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        if (pinCode.isNotEmpty()) {
-                            pendingPinAction = "whitelist"
-                            pinVerifyInput = ""
-                            pinVerifyError = false
-                            showPinVerifyDialog = true
-                        } else {
-                            showWhitelistDialog = true
-                        }
-                    }
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            Surface(
+                color = Color.White,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
-                    Text(
-                        stringResource(R.string.child_mode_whitelist),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        whitelistCount,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (pinCode.isNotEmpty()) {
+                                    pendingPinAction = "whitelist"
+                                    pinVerifyInput = ""
+                                    pinVerifyError = false
+                                    showPinVerifyDialog = true
+                                } else {
+                                    showWhitelistDialog = true
+                                }
+                            }
+                            .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                stringResource(R.string.child_mode_whitelist),
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                whitelistCount,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            "›",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color(0xFFC0C0C0)
+                        )
+                    }
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        thickness = 1.dp,
+                        color = Color(0xFFD8D8D8)
                     )
                 }
-                Text(
-                    "›",
-                    style = MaterialTheme.typography.titleMedium
-                )
             }
 
             // PIN Code section
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        if (pinCode.isNotEmpty()) {
-                            pendingPinAction = "pin"
-                            pinVerifyInput = ""
-                            pinVerifyError = false
-                            showPinVerifyDialog = true
-                        } else {
-                            pinNewInput = ""
-                            pinConfirmInput = ""
-                            pinSetupError = false
-                            showPinSetupDialog = true
-                        }
-                    }
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            Surface(
+                color = Color.White,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
-                    Text(
-                        stringResource(R.string.child_mode_pin),
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        if (pinCode.isNotEmpty()) "●●●●" else stringResource(R.string.child_mode_pin_not_set),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (pinCode.isNotEmpty()) {
+                                    pendingPinAction = "pin"
+                                    pinVerifyInput = ""
+                                    pinVerifyError = false
+                                    showPinVerifyDialog = true
+                                } else {
+                                    pinNewInput = ""
+                                    pinConfirmInput = ""
+                                    pinSetupError = false
+                                    showPinSetupDialog = true
+                                }
+                            }
+                            .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                stringResource(R.string.child_mode_pin),
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                if (pinCode.isNotEmpty()) "●●●●" else stringResource(R.string.child_mode_pin_not_set),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            "›",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color(0xFFC0C0C0)
+                        )
+                    }
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        thickness = 1.dp,
+                        color = Color(0xFFD8D8D8)
                     )
                 }
-                Text(
-                    "›",
-                    style = MaterialTheme.typography.titleMedium
-                )
+            }
             }
             }
         }
+    }
     }
 
     // Edit/Add Dialog
@@ -444,14 +496,13 @@ fun ChildModeSettingsScreen(
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Spacer(modifier = Modifier.width(12.dp))
-                                        OutlinedButton(
+                                        TextButton(
                                             onClick = {
                                                 editingIndex = index
                                                 dialogInput = url
                                                 isAddMode = false
                                                 showEditDialog = true
-                                            },
-                                            contentPadding = PaddingValues(horizontal = 12.dp)
+                                            }
                                         ) {
                                             Text(
                                                 stringResource(R.string.child_mode_whitelist_edit),
@@ -459,13 +510,12 @@ fun ChildModeSettingsScreen(
                                             )
                                         }
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        OutlinedButton(
+                                        TextButton(
                                             onClick = {
                                                 editingIndex = index
                                                 showDeleteDialog = true
                                             },
-                                            contentPadding = PaddingValues(horizontal = 12.dp),
-                                            colors = ButtonDefaults.outlinedButtonColors(
+                                            colors = ButtonDefaults.textButtonColors(
                                                 contentColor = MaterialTheme.colorScheme.error
                                             )
                                         ) {
@@ -479,23 +529,32 @@ fun ChildModeSettingsScreen(
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.padding(8.dp))
-                    Button(
-                        onClick = {
-                            editingIndex = -1
-                            dialogInput = ""
-                            isAddMode = true
-                            showEditDialog = true
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("+ ${stringResource(R.string.child_mode_whitelist_add)}")
-                    }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showWhitelistDialog = false }) {
-                    Text(stringResource(R.string.action_ok))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row {
+                        TextButton(
+                            onClick = {
+                                editingIndex = -1
+                                dialogInput = ""
+                                isAddMode = true
+                                showEditDialog = true
+                            }
+                        ) {
+                            Text("+ ${stringResource(R.string.child_mode_whitelist_add)}")
+                        }
+                        TextButton(onClick = { showWhitelistDialog = false }) {
+                            Text(stringResource(R.string.action_cancel))
+                        }
+                    }
+                    TextButton(onClick = { showWhitelistDialog = false }) {
+                        Text(stringResource(R.string.action_ok))
+                    }
                 }
             }
         )
@@ -517,6 +576,7 @@ fun ChildModeSettingsScreen(
                         label = { Text(stringResource(R.string.child_mode_pin_verify_hint)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        visualTransformation = PasswordVisualTransformation(),
                         isError = pinVerifyError,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -583,6 +643,7 @@ fun ChildModeSettingsScreen(
                         label = { Text(stringResource(R.string.child_mode_pin_new_hint)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        visualTransformation = PasswordVisualTransformation(),
                         isError = pinSetupError,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -596,6 +657,7 @@ fun ChildModeSettingsScreen(
                         label = { Text(stringResource(R.string.child_mode_pin_confirm_hint)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        visualTransformation = PasswordVisualTransformation(),
                         isError = pinSetupError,
                         modifier = Modifier.fillMaxWidth()
                     )

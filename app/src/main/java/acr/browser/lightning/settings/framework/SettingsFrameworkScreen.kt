@@ -16,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,10 +27,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -46,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -96,17 +100,28 @@ fun SettingsFrameworkScreen(
         }
     }
     Scaffold(
+        containerColor = Color(0xFFF2F2F7),
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState)
         },
         topBar = {
             TopAppBar(
+                modifier = Modifier.height(48.dp),
                 title = {
                     Text(state.title)
                 }
             )
         }
     ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+        ) {
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color = Color(0xFFD8D8D8)
+            )
         when (val content = state.content) {
             is SettingsUiState.Content.Actual -> {
                 if (content.bottomSheetChooser != null) {
@@ -203,7 +218,6 @@ fun SettingsFrameworkScreen(
 
                 Box(
                     modifier = Modifier
-                        .padding(innerPadding)
                         .fillMaxSize(),
                     contentAlignment = Alignment.TopCenter
                 ) {
@@ -212,8 +226,15 @@ fun SettingsFrameworkScreen(
                             .widthIn(max = 600.dp)
                             .fillMaxWidth()
                             .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
-                        content.entries.forEachIndexed { index, option ->
+                        Surface(
+                            color = Color.White,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column {
+                                content.entries.forEachIndexed { index, option ->
                         when (option) {
                             is SettingsClickableState -> SettingsClickable(option) {
                                 presenter.onEvent(SettingsFrameworkUiEvent.Click(index))
@@ -224,11 +245,14 @@ fun SettingsFrameworkScreen(
                             }
                         }
                     }
+                            }
+                        }
+                    }
                 }
             }
-            }
 
-            SettingsUiState.Content.Loading -> SettingsLoader(innerPadding)
+            SettingsUiState.Content.Loading -> SettingsLoader(PaddingValues(0.dp))
+        }
         }
     }
 }
