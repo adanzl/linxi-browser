@@ -1,5 +1,6 @@
 # Android Studio
 *.jks
+*.keystore
 .DS_Store
 /local.properties
 /.idea/workspace.xml
@@ -52,3 +53,8 @@ out
 # https://gitlab.com/fdroid/fdroidclient/raw/master/.gitignore
 
 *.iml
+
+# Node.js
+node_modules/
+package-lock.json
+package.json

@@ -20,6 +20,21 @@ android {
 
     val isCi = System.getenv("CI") == "true"
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("../deploy/release.keystore")
+            storePassword = "lightning123"
+            keyAlias = "lightning"
+            keyPassword = "lightning123"
+        }
+        create("release") {
+            storeFile = file("../deploy/release.keystore")
+            storePassword = project.findProperty("RELEASE_STORE_PASSWORD") as String
+            keyAlias = project.findProperty("RELEASE_KEY_ALIAS") as String
+            keyPassword = project.findProperty("RELEASE_KEY_PASSWORD") as String
+        }
+    }
+
     sourceSets {
         create("lightningPlus").apply {
             setRoot("src/LightningPlus")
@@ -53,6 +68,7 @@ android {
         }
 
         named("release") {
+            signingConfig = signingConfigs.getByName("release")
             multiDexEnabled = false
             isMinifyEnabled = !isCi
             isShrinkResources = !isCi
