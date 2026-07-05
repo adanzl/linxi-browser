@@ -1,6 +1,8 @@
 /*
  * Copyright 2014 A.C.R. Development
  */
+@file:Suppress("DEPRECATION")
+
 package acr.browser.lightning.download
 
 import acr.browser.lightning.BuildConfig
@@ -287,10 +289,8 @@ class DownloadHandler @Inject constructor(
         }
 
         private fun isWriteAccessAvailable(fileUri: Uri): Boolean {
-            if (fileUri.path == null) {
-                return false
-            }
-            val file = File(fileUri.path)
+            val path = fileUri.path ?: return false
+            val file = File(path)
 
             if (!file.isDirectory && !file.mkdirs()) {
                 return false

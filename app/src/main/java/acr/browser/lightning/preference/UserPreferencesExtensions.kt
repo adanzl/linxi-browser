@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package acr.browser.lightning.preference
 
 import acr.browser.lightning.constant.DESKTOP_USER_AGENT

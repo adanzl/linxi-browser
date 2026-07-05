@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package acr.browser.lightning.utils
 
 import acr.browser.lightning.concurrency.CoroutineDispatchers

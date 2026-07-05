@@ -155,7 +155,7 @@
 
     <!-- permissions request -->
     <string name="title_permission_request">权限请求</string>
-    <string name="message_permission_request">%1$s\n\n想要使用：\n\n%2$s</string>
+    <string name="message_permission_request">%1$s\n想要使用：\n%2$s</string>
 
     <string name="title_form_resubmission">重新提交表单</string>
     <string name="message_form_resubmission">你想要重新发送数据吗？</string>
@@ -256,6 +256,11 @@
     <string name="upsell_plus_version">升级到 Lightning Plus 以屏蔽广告</string>
     <string name="message_open_download_fail">文件不存在</string>
 
+    <string name="tab_style_title">标签页样式</string>
+    <string name="tab_style_desktop">桌面样式</string>
+    <string name="tab_style_side_drawer">侧边抽屉</string>
+    <string name="tab_style_bottom_drawer">底部抽屉</string>
+
     <string name="faq">FAQ</string>
     <string name="faq_description">常见问题</string>
 
@@ -319,4 +324,30 @@
 
     <!-- Search -->
     <string name="search_insert_suggestion">插入搜索建议</string>
+
+    <!-- Child Mode -->
+    <string name="settings_child_mode">儿童模式</string>
+    <string name="child_mode_enable">启用儿童模式</string>
+    <string name="child_mode_whitelist">白名单</string>
+    <string name="child_mode_whitelist_description">管理允许的网站</string>
+    <string name="child_mode_whitelist_add">添加</string>
+    <string name="child_mode_whitelist_remove">移除</string>
+    <string name="child_mode_whitelist_empty">白名单中没有 URL</string>
+    <string name="child_mode_blocked_message">此网站当前访问受限</string>
+    <string name="child_mode_whitelist_edit">编辑</string>
+    <string name="child_mode_whitelist_del">删除</string>
+    <string name="child_mode_whitelist_delete_confirm">确定要删除此 URL 吗？</string>
+    <string name="child_mode_whitelist_edit_title">编辑 URL</string>
+    <string name="child_mode_whitelist_add_title">添加 URL</string>
+    <string name="child_mode_whitelist_clear">清空</string>
+    <string name="child_mode_pin">PIN 码</string>
+    <string name="child_mode_pin_desc">设置儿童模式的 PIN 码</string>
+    <string name="child_mode_pin_verify_title">验证 PIN</string>
+    <string name="child_mode_pin_verify_hint">输入当前 PIN</string>
+    <string name="child_mode_pin_wrong">PIN 码错误</string>
+    <string name="child_mode_pin_set_title">设置 PIN</string>
+    <string name="child_mode_pin_new_hint">新 PIN</string>
+    <string name="child_mode_pin_confirm_hint">确认 PIN</string>
+    <string name="child_mode_pin_mismatch">两次输入的 PIN 不一致</string>
+    <string name="child_mode_pin_not_set">未设置</string>
 </resources>

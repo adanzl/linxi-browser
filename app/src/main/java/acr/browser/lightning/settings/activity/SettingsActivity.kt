@@ -13,6 +13,7 @@ import acr.browser.lightning.settings.screens.AboutSettingsScreen
 import acr.browser.lightning.settings.screens.AdBlockSettingsScreen
 import acr.browser.lightning.settings.screens.AdvancedSettingsScreen
 import acr.browser.lightning.settings.screens.BookmarkSettingsScreen
+import acr.browser.lightning.settings.screens.ChildModeSettingsScreen
 import acr.browser.lightning.settings.screens.DebugSettingsScreen
 import acr.browser.lightning.settings.screens.DisplaySettingsScreen
 import acr.browser.lightning.settings.screens.GeneralSettingsScreen
@@ -44,6 +45,7 @@ class SettingsActivity : ThemableActivity() {
     @Inject internal lateinit var adBlockSettingsScreen: AdBlockSettingsScreen
     @Inject internal lateinit var advancedSettingsScreen: AdvancedSettingsScreen
     @Inject internal lateinit var bookmarkSettingsScreen: BookmarkSettingsScreen
+    @Inject internal lateinit var childModeSettingsScreen: ChildModeSettingsScreen
     @Inject internal lateinit var debugSettingsScreen: DebugSettingsScreen
     @Inject internal lateinit var displaySettingsScreen: DisplaySettingsScreen
     @Inject internal lateinit var generalSettingsScreen: GeneralSettingsScreen
@@ -124,6 +126,12 @@ class SettingsActivity : ThemableActivity() {
 
                         SettingsNavigation.DEBUG -> DebugSettingsScreen(
                             debugSettingsScreen
+                        ) {
+                            navigationState = SettingsNavigation.ROOT
+                        }
+
+                        SettingsNavigation.CHILD_MODE -> ChildModeSettingsScreen(
+                            childModeSettingsScreen
                         ) {
                             navigationState = SettingsNavigation.ROOT
                         }

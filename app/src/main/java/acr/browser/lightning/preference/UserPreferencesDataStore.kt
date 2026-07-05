@@ -157,7 +157,7 @@ class UserPreferencesDataStore @Inject constructor(
     val fullScreenEnabled: NonNullPreferenceStore<Boolean> = NonNullPreferenceStore(
         key = booleanPreferencesKey(FULL_SCREEN),
         dataStore = dataStore,
-        defaultValue = true
+        defaultValue = false
     )
 
     /**
@@ -167,7 +167,7 @@ class UserPreferencesDataStore @Inject constructor(
     val hideStatusBarEnabled: NonNullPreferenceStore<Boolean> = NonNullPreferenceStore(
         key = booleanPreferencesKey(HIDE_STATUS_BAR),
         dataStore = dataStore,
-        defaultValue = false
+        defaultValue = true
     )
 
     /**
@@ -399,7 +399,7 @@ class UserPreferencesDataStore @Inject constructor(
         key = intPreferencesKey(TAB_CONFIGURATION),
         dataStore = dataStore,
         defaultValue = if (!screenSize.isTablet()) {
-            TabConfiguration.DRAWER_BOTTOM
+            TabConfiguration.DRAWER_SIDE
         } else {
             TabConfiguration.DESKTOP
         }
@@ -491,6 +491,33 @@ class UserPreferencesDataStore @Inject constructor(
         dataStore = dataStore
     )
 
+    /**
+     * True if child mode is enabled, false otherwise.
+     */
+    val childModeEnabled: NonNullPreferenceStore<Boolean> = NonNullPreferenceStore(
+        key = booleanPreferencesKey(CHILD_MODE_ENABLED),
+        dataStore = dataStore,
+        defaultValue = false
+    )
+
+    /**
+     * The whitelist URLs for child mode, stored as a comma-separated string.
+     */
+    val childModeWhitelist: NonNullPreferenceStore<String> = NonNullPreferenceStore(
+        key = stringPreferencesKey(CHILD_MODE_WHITELIST),
+        dataStore = dataStore,
+        defaultValue = ""
+    )
+
+    /**
+     * The PIN code for child mode. Empty string means no PIN is set.
+     */
+    val childModePin: NonNullPreferenceStore<String> = NonNullPreferenceStore(
+        key = stringPreferencesKey(CHILD_MODE_PIN),
+        dataStore = dataStore,
+        defaultValue = ""
+    )
+
     companion object {
         private const val FILE_NAME = "settings"
     }
@@ -537,3 +564,6 @@ private const val SEARCH_SUGGESTIONS = "searchSuggestionsChoice"
 private const val HOSTS_SOURCE = "hostsSource"
 private const val HOSTS_LOCAL_FILE = "hostsLocalFile"
 private const val HOSTS_REMOTE_FILE = "hostsRemoteFile"
+private const val CHILD_MODE_ENABLED = "childModeEnabled"
+private const val CHILD_MODE_WHITELIST = "childModeWhitelist"
+private const val CHILD_MODE_PIN = "childModePin"

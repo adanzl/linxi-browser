@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package acr.browser.lightning.browser.tab
 
 import acr.browser.lightning.BuildConfig
@@ -6,6 +7,8 @@ import acr.browser.lightning.browser.di.IncognitoMode
 import acr.browser.lightning.constant.FILE
 import acr.browser.lightning.extensions.snackbar
 import acr.browser.lightning.log.Logger
+import acr.browser.lightning.preference.UserPreferencesDataStore
+import acr.browser.lightning.preference.datastore.getUnsafe
 import acr.browser.lightning.utils.IntentUtils
 import acr.browser.lightning.utils.Utils
 import acr.browser.lightning.utils.isSpecialUrl
@@ -22,6 +25,23 @@ import java.net.URISyntaxException
 import javax.inject.Inject
 
 /**
+ * Extract only the domain from a URL.
+ * Strips protocol, path, query, and port.
+ */
+private fun extractDomain(url: String): String {
+    var s = url.trim().lowercase()
+    s = s.removePrefix("https://").removePrefix("http://")
+    val slashIndex = s.indexOf('/')
+    if (slashIndex > 0) s = s.substring(0, slashIndex)
+    val lastColonIndex = s.lastIndexOf(':')
+    if (lastColonIndex > 0 && s.substring(lastColonIndex + 1).all { it.isDigit() }) {
+        s = s.substring(0, lastColonIndex)
+    }
+    s = s.removePrefix("www.")
+    return s.trimEnd('.')
+}
+
+/**
  * Handle URLs loaded by the [WebView] and determine if they should be loaded by the browser or
  * another app.
  */
@@ -29,6 +49,7 @@ class UrlHandler @Inject constructor(
     private val activity: Activity,
     private val logger: Logger,
     private val intentUtils: IntentUtils,
+    private val userPreferencesDataStore: UserPreferencesDataStore,
     @IncognitoMode private val incognitoMode: Boolean
 ) {
 
@@ -41,6 +62,12 @@ class UrlHandler @Inject constructor(
         url: String,
         headers: Map<String, String>
     ): Boolean {
+        // Child mode whitelist check
+        if (shouldBlockForChildMode(url)) {
+            view.stopLoading()
+            activity.snackbar(R.string.child_mode_blocked_message)
+            return true
+        }
         if (incognitoMode) {
             // If we are in incognito, immediately load, we don't want the url to leave the app
             return continueLoadingUrl(view, url, headers)
@@ -140,5 +167,17 @@ class UrlHandler @Inject constructor(
 
     companion object {
         private const val TAG = "UrlHandler"
+    }
+
+    private fun shouldBlockForChildMode(url: String): Boolean {
+        if (!userPreferencesDataStore.childModeEnabled.getUnsafe()) return false
+        val whitelist = userPreferencesDataStore.childModeWhitelist.getUnsafe()
+        if (whitelist.isEmpty()) return false
+        // Allow about: and data: and javascript: URLs
+        if (!URLUtil.isNetworkUrl(url)) return false
+        val domain = extractDomain(url)
+        if (domain.isEmpty()) return false
+        val whitelistDomains = whitelist.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+        return !whitelistDomains.contains(domain)
     }
 }

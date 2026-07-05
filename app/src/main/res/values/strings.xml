@@ -157,7 +157,11 @@
 
     <!-- permissions request -->
     <string name="title_permission_request">Permission request</string>
-    <string name="message_permission_request">%1$s\n\nwould like to use:\n\n%2$s</string>
+    <string name="message_permission_request">%1$s
+
+would like to use:
+
+%2$s</string>
 
     <string name="title_form_resubmission">Form resubmission</string>
     <string name="message_form_resubmission">Would you like to resend the data?</string>
@@ -342,4 +346,31 @@
 
     <!-- Search -->
     <string name="search_insert_suggestion">Insert suggestion</string>
+
+    <!-- Child Mode -->
+    <string name="settings_child_mode">Child Mode</string>
+    <string name="child_mode_enable">Enable child mode</string>
+    <string name="child_mode_whitelist">Whitelist</string>
+    <string name="child_mode_whitelist_description">Manage allowed websites</string>
+    <string name="child_mode_whitelist_add">ADD</string>
+    <string name="child_mode_whitelist_remove">Remove</string>
+    <string name="child_mode_whitelist_empty">No URLs in whitelist</string>
+    <string name="child_mode_blocked_message">This website is not allowed in child mode</string>
+    <string name="child_mode_whitelist_edit">EDIT</string>
+    <string name="child_mode_whitelist_del">DEL</string>
+    <string name="child_mode_whitelist_delete_confirm">Delete this URL?</string>
+    <string name="child_mode_whitelist_edit_title">Edit URL</string>
+    <string name="child_mode_whitelist_add_title">Add URL</string>
+    <string name="child_mode_whitelist_clear">Clear</string>
+    <string name="child_mode_whitelist_domain_hint">example.com</string>
+    <string name="child_mode_pin">PIN Code</string>
+    <string name="child_mode_pin_desc">Set a PIN to exit child mode</string>
+    <string name="child_mode_pin_verify_title">Verify PIN</string>
+    <string name="child_mode_pin_verify_hint">Enter current PIN</string>
+    <string name="child_mode_pin_wrong">Incorrect PIN</string>
+    <string name="child_mode_pin_set_title">Set PIN</string>
+    <string name="child_mode_pin_new_hint">New PIN</string>
+    <string name="child_mode_pin_confirm_hint">Confirm PIN</string>
+    <string name="child_mode_pin_mismatch">PINs do not match</string>
+    <string name="child_mode_pin_not_set">Not set</string>
 </resources>

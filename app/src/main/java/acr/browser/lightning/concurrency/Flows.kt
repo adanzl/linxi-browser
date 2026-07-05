@@ -1,3 +1,5 @@
+@file:Suppress("UNCHECKED_CAST")
+
 package acr.browser.lightning.concurrency
 
 import kotlinx.coroutines.flow.Flow

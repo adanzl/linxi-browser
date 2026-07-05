@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package acr.browser.lightning
 
 import acr.browser.lightning.browser.di.injector

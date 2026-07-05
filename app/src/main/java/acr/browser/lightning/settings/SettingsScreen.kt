@@ -5,6 +5,7 @@ import acr.browser.lightning.device.BuildInfo
 import acr.browser.lightning.device.BuildType
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
@@ -54,7 +56,8 @@ enum class SettingsNavigation {
     ADVANCED,
     ABOUT,
     FAQ,
-    DEBUG
+    DEBUG,
+    CHILD_MODE
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,11 +75,26 @@ fun SettingsScreen(
             )
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
+                .fillMaxSize(),
+            contentAlignment = Alignment.TopCenter
         ) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 600.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+            SettingsClickable(
+                SettingsClickableState(
+                    title = stringResource(R.string.settings_child_mode),
+                    summary = stringResource(R.string.child_mode_whitelist_description)
+                )
+            ) {
+                onNavigate(SettingsNavigation.CHILD_MODE)
+            }
             SettingsClickable(SettingsClickableState(title = stringResource(R.string.settings_adblock))) {
                 onNavigate(SettingsNavigation.ADBLOCK)
             }
@@ -115,6 +133,7 @@ fun SettingsScreen(
                 SettingsClickable(SettingsClickableState(title = stringResource(R.string.debug_title))) {
                     onNavigate(SettingsNavigation.DEBUG)
                 }
+            }
             }
         }
     }

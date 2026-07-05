@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package acr.browser.lightning.search
 
 import acr.browser.lightning.preference.UserPreferencesDataStore

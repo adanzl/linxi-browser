@@ -14,9 +14,11 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -199,12 +201,19 @@ fun SettingsFrameworkScreen(
                     }
                 }
 
-                Column(
+                Box(
                     modifier = Modifier
                         .padding(innerPadding)
-                        .verticalScroll(rememberScrollState())
+                        .fillMaxSize(),
+                    contentAlignment = Alignment.TopCenter
                 ) {
-                    content.entries.forEachIndexed { index, option ->
+                    Column(
+                        modifier = Modifier
+                            .widthIn(max = 600.dp)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        content.entries.forEachIndexed { index, option ->
                         when (option) {
                             is SettingsClickableState -> SettingsClickable(option) {
                                 presenter.onEvent(SettingsFrameworkUiEvent.Click(index))
@@ -216,6 +225,7 @@ fun SettingsFrameworkScreen(
                         }
                     }
                 }
+            }
             }
 
             SettingsUiState.Content.Loading -> SettingsLoader(innerPadding)

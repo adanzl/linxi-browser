@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package acr.browser.lightning.browser.view
 
 import acr.browser.lightning.R

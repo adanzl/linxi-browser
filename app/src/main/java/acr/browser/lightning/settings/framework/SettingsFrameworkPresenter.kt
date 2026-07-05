@@ -1,3 +1,5 @@
+@file:Suppress("UNCHECKED_CAST")
+
 package acr.browser.lightning.settings.framework
 
 import acr.browser.lightning.settings.SettingsBottomSheetChooserState
