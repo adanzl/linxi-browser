@@ -137,6 +137,14 @@ class ConfigSyncService @Inject constructor(
         // Check for app update
         appUpdateManager.checkForUpdate(config.app)
 
+        // Log app config
+        val appConfig = config.app
+        if (appConfig != null) {
+            logger.log(TAG, "  app: version=${appConfig.version}, url=${appConfig.url}")
+        } else {
+            logger.log(TAG, "  app: null")
+        }
+
         // Log all config
         logger.log(TAG, "Config synced | version=${config.version}, env=${config.env}, timestamp=${config.timestamp}")
         logger.log(TAG, "  whitelist: open=$whitelistOpen, urls=${config.whitelist?.urls?.size ?: 0}")

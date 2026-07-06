@@ -182,6 +182,11 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/filepaths" />
         </provider>
+
+        <activity
+            android:name="acr.browser.lightning.config.UpdatePromptActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light.Dialog" />
     </application>
 
 </manifest>

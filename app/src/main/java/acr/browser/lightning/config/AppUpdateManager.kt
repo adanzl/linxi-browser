@@ -8,17 +8,7 @@ import acr.browser.lightning.log.Logger
 import acr.browser.lightning.preference.UserPreferencesDataStore
 import android.app.Application
 import android.content.Intent
-import android.net.Uri
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.core.content.FileProvider
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import java.io.File
-import java.io.FileOutputStream
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,12 +20,6 @@ class AppUpdateManager @Inject constructor(
     private val appCoroutineScope: AppCoroutineScope,
     private val coroutineDispatchers: CoroutineDispatchers,
 ) {
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .writeTimeout(120, TimeUnit.SECONDS)
-        .followRedirects(true)
-        .build()
 
     /**
      * 检查是否有新版本，如果有则弹出确认框
@@ -69,9 +53,15 @@ class AppUpdateManager @Inject constructor(
         userPreferencesDataStore.remoteUpdatePromptedVersion.set(remoteVersion)
         logger.log(TAG, "checkForUpdate: new version found remote=$remoteVersion, current=$currentVersion")
 
-        // 在主线程弹出确认框
+        // 在主线程启动 UpdatePromptActivity 展示对话框
         appCoroutineScope.launch(coroutineDispatchers.main) {
-            showUpdateDialog(remoteVersion, downloadUrl)
+            val intent = Intent(application, UpdatePromptActivity::class.java).apply {
+                putExtra("version", remoteVersion)
+                putExtra("url", downloadUrl)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            application.startActivity(intent)
         }
     }
 
@@ -91,97 +81,7 @@ class AppUpdateManager @Inject constructor(
         return false
     }
 
-    /**
-     * 弹出更新确认框
-     */
-    private fun showUpdateDialog(version: String, url: String) {
-        val dialog = AlertDialog.Builder(application)
-            .setTitle(application.getString(R.string.update_title))
-            .setMessage(application.getString(R.string.update_message, version))
-            .setPositiveButton(application.getString(R.string.update_download)) { _, _ ->
-                downloadAndInstall(url)
-            }
-            .setNegativeButton(application.getString(R.string.update_later), null)
-            .setCancelable(false)
-            .show()
-
-        // 设置 dialog 窗口类型，确保能从 Application context 正常显示
-        dialog.window?.let { window ->
-            window.setType(android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
-        }
-    }
-
-    /**
-     * 下载 APK 并安装
-     */
-    private fun downloadAndInstall(url: String) {
-        appCoroutineScope.launch(coroutineDispatchers.io) {
-            try {
-                logger.log(TAG, "Starting APK download from $url")
-
-                val request = Request.Builder().url(url).get().build()
-                val response = client.newCall(request).execute()
-                if (!response.isSuccessful) {
-                    logger.log(TAG, "Download failed: HTTP ${response.code}")
-                    withContext(coroutineDispatchers.main) {
-                        Toast.makeText(application, R.string.update_download_failed, Toast.LENGTH_SHORT).show()
-                    }
-                    return@launch
-                }
-
-                val body = response.body
-
-                val apkFile = File(application.cacheDir, APK_FILE_NAME)
-                FileOutputStream(apkFile).use { output ->
-                    body.byteStream().use { input ->
-                        input.copyTo(output)
-                    }
-                }
-
-                logger.log(TAG, "APK downloaded to ${apkFile.absolutePath}")
-                withContext(coroutineDispatchers.main) {
-                    installApk(apkFile)
-                }
-            } catch (e: Exception) {
-                logger.log(TAG, "Download failed: ${e.message}")
-                withContext(coroutineDispatchers.main) {
-                    Toast.makeText(application, R.string.update_download_failed, Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    /**
-     * 安装 APK
-     */
-    private fun installApk(file: File) {
-        if (!file.exists()) {
-            logger.log(TAG, "APK file not found: ${file.absolutePath}")
-            return
-        }
-
-        try {
-            val uri = FileProvider.getUriForFile(
-                application,
-                "${BuildConfig.APPLICATION_ID}.fileprovider",
-                file
-            )
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            }
-            application.startActivity(intent)
-            logger.log(TAG, "Install intent sent for ${file.absolutePath}")
-        } catch (e: Exception) {
-            logger.log(TAG, "Failed to install APK: ${e.message}")
-            Toast.makeText(application, R.string.update_install_failed, Toast.LENGTH_SHORT).show()
-        }
-    }
-
     companion object {
         private const val TAG = "AppUpdateManager"
-        private const val APK_FILE_NAME = "update.apk"
     }
 }
