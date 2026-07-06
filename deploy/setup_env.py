@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Lightning Browser - 环境设置脚本
+ 环境设置脚本
 自动配置开发环境
 """
 
@@ -22,12 +22,18 @@ class EnvSetup:
         
         if self.system == "Windows":
             self.sdk_root = Path("C:/SDK")
+        elif self.system == "Linux":
+            self.sdk_root = Path("/opt")
         else:
+            # macOS (Darwin)
             self.sdk_root = Path.home() / "SDK"
         
         self.java_home = self.sdk_root / "jdk-21"
         self.android_home = self.sdk_root / "android-sdk"
-        self.gradle_user_home = self.sdk_root / "gradle-cache"
+        if self.system == "Windows":
+            self.gradle_user_home = self.sdk_root / "gradle-cache"
+        else:
+            self.gradle_user_home = Path.home() / ".gradle"
         
     def check_prerequisites(self):
         """检查前置条件"""
@@ -55,6 +61,7 @@ class EnvSetup:
         
         try:
             urlretrieve(url, dest, reporthook=self.download_progress)
+            print()  # 进度条换行
             print("✅ 下载完成")
             return True
         except Exception as e:
@@ -105,9 +112,9 @@ class EnvSetup:
             return False
         
         # 移动文件
+        self.java_home.mkdir(parents=True, exist_ok=True)
         jdk_folders = list(temp_dir.glob("jdk-*"))
         if jdk_folders:
-            self.java_home.mkdir(parents=True, exist_ok=True)
             for item in jdk_folders[0].iterdir():
                 shutil.move(str(item), str(self.java_home / item.name))
             shutil.rmtree(temp_dir, ignore_errors=True)
@@ -152,7 +159,8 @@ class EnvSetup:
         
         # 安装 SDK 组件
         print("\n📦 安装 SDK 组件...")
-        self.install_sdk_components()
+        if not self.install_sdk_components():
+            return False
         
         print("✅ Android SDK 安装完成")
         return True
@@ -160,20 +168,34 @@ class EnvSetup:
     def install_sdk_components(self):
         """安装必需的 SDK 组件"""
         sdkmanager = self.android_home / "cmdline-tools" / "latest" / "bin" / ("sdkmanager.bat" if self.system == "Windows" else "sdkmanager")
-        
+
         if not sdkmanager.exists():
             print("❌ 找不到 sdkmanager")
             return False
-        
+
         env = os.environ.copy()
         env['JAVA_HOME'] = str(self.java_home)
-        
+
+        # 自动接受许可协议
+        print("  接受 SDK 许可协议...")
+        try:
+            subprocess.run(
+                [str(sdkmanager), "--licenses"],
+                input=b"y\n" * 10,
+                env=env,
+                cwd=self.android_home,
+                capture_output=True
+            )
+            print("  ✅ 许可协议已接受")
+        except subprocess.CalledProcessError:
+            print("  ⚠️  接受许可协议出现警告，继续安装...")
+
         components = [
             "platform-tools",
             "platforms;android-36",
             "build-tools;34.0.0"
         ]
-        
+
         for component in components:
             print(f"  安装: {component}")
             try:
@@ -187,18 +209,20 @@ class EnvSetup:
                 print(f"  ✅ {component}")
             except subprocess.CalledProcessError as e:
                 print(f"  ❌ {component} 失败: {e}")
+                # 尝试获取更多错误信息
+                if e.stderr:
+                    print(f"     错误详情: {e.stderr.decode('utf-8', errors='replace')[:500]}")
                 return False
-        
+
         return True
     
     def setup_gradle_cache(self):
         """设置 Gradle 缓存目录"""
         print("\n⚙️  设置 Gradle 缓存...")
         
-        gradle_cache = self.sdk_root / "gradle-cache"
-        gradle_cache.mkdir(parents=True, exist_ok=True)
+        self.gradle_user_home.mkdir(parents=True, exist_ok=True)
         
-        print(f"✅ Gradle 缓存目录: {gradle_cache}")
+        print(f"✅ Gradle 缓存目录: {self.gradle_user_home}")
         return True
     
     def run(self):
@@ -225,6 +249,7 @@ class EnvSetup:
         print(f"\nSDK 位置: {self.sdk_root}")
         print(f"JDK: {self.java_home}")
         print(f"Android SDK: {self.android_home}")
+        print(f"Gradle 缓存: {self.gradle_user_home}")
         print(f"\n现在可以运行: python deploy/build.py build")
         
         return True
