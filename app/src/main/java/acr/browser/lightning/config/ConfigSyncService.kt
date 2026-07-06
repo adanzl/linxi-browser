@@ -24,6 +24,7 @@ class ConfigSyncService @Inject constructor(
     private val coroutineDispatchers: CoroutineDispatchers,
     private val userPreferencesDataStore: UserPreferencesDataStore,
     private val logger: Logger,
+    private val appUpdateManager: AppUpdateManager,
 ) {
     private var syncJob: Job? = null
 
@@ -132,6 +133,9 @@ class ConfigSyncService @Inject constructor(
             homepageFile.delete()
             logger.log(TAG, "Cached homepage deleted, will regenerate on next tab open")
         }
+
+        // Check for app update
+        appUpdateManager.checkForUpdate(config.app)
 
         // Log all config
         logger.log(TAG, "Config synced | version=${config.version}, env=${config.env}, timestamp=${config.timestamp}")
