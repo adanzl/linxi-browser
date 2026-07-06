@@ -5,6 +5,7 @@
 """
 
 import os
+import re
 import sys
 import platform
 import subprocess
@@ -224,7 +225,111 @@ class EnvSetup:
         
         print(f"✅ Gradle 缓存目录: {self.gradle_user_home}")
         return True
-    
+
+    def _setup_shell_env(self):
+        """自动将环境变量写入 shell 配置文件并 source 生效"""
+        print("\n" + "-"*60)
+        print("📌 配置环境变量...")
+        print("-"*60)
+
+        if self.system == "Windows":
+            print(f"    $env:JAVA_HOME = \"{self.java_home}\"")
+            print(f"    $env:ANDROID_HOME = \"{self.android_home}\"")
+            print(f"    $env:GRADLE_USER_HOME = \"{self.gradle_user_home}\"")
+            print(f"    $env:Path += \";{self.java_home / 'bin'}\"")
+            print(f"    $env:Path += \";{self.android_home / 'platform-tools'}\"")
+            print("\n    ⚠️  Windows 请手动添加系统环境变量")
+            return True
+
+        # 确定 shell 配置文件
+        shell = os.environ.get("SHELL", "")
+        if "zsh" in shell:
+            rc_file = Path.home() / ".zshrc"
+            shell_name = "zsh"
+        elif "bash" in shell:
+            rc_file = Path.home() / ".bashrc"
+            shell_name = "bash"
+        elif self.system == "Darwin":
+            rc_file = Path.home() / ".zshrc"
+            shell_name = "zsh"
+        else:
+            rc_file = Path.home() / ".bashrc"
+            shell_name = "bash"
+
+        print(f"  检测到 shell: {shell_name}, 配置文件: {rc_file.name}")
+
+        # 构造环境变量块
+        block_start = "# === Linxi Browser Env ==="
+        block_end = "# === End Linxi Browser Env ==="
+
+        java_home_path = str(self.java_home)
+        android_home_path = str(self.android_home)
+        gradle_home_path = str(self.gradle_user_home)
+        java_bin = str(self.java_home / "bin")
+        platform_tools = str(self.android_home / "platform-tools")
+
+        def _quote_path(p):
+            return f"\"{p}\"" if " " in p else p
+
+        env_vars = [
+            f"export JAVA_HOME={_quote_path(java_home_path)}",
+            f"export ANDROID_HOME={_quote_path(android_home_path)}",
+            f"export GRADLE_USER_HOME={_quote_path(gradle_home_path)}",
+            f"export PATH=$PATH:{_quote_path(java_bin)}:{_quote_path(platform_tools)}",
+        ]
+
+        env_block = (
+            f"{block_start}\n"
+            + "\n".join(env_vars) + "\n"
+            + f"{block_end}\n"
+        )
+
+        try:
+            if rc_file.exists():
+                content = rc_file.read_text(encoding="utf-8", errors="replace")
+                if block_start in content:
+                    # 替换已有块
+                    content = re.sub(
+                        re.escape(block_start) + ".*?" + re.escape(block_end),
+                        env_block.strip(),
+                        content,
+                        flags=re.DOTALL
+                    )
+                    action = "更新"
+                else:
+                    # 追加到末尾
+                    content = content.rstrip() + "\n\n" + env_block
+                    action = "添加"
+            else:
+                content = env_block
+                action = "创建"
+
+            rc_file.write_text(content, encoding="utf-8")
+            print(f"  ✅ 环境变量已{action}到 ~/{rc_file.name}")
+
+            # 打印各变量值以供确认
+            for var_line in env_vars:
+                print(f"    {var_line}")
+
+            # source 使其在当前终端立即生效
+            try:
+                subprocess.run(
+                    [shell_name, "-c", f"source {rc_file}"],
+                    capture_output=True, timeout=5
+                )
+                print(f"  ✅ 已 source，若当前终端未生效请手动执行: source ~/{rc_file.name}")
+            except Exception as e:
+                print(f"  ⚠️  自动 source 失败: {e}")
+                print(f"     请手动执行: source ~/{rc_file.name}")
+
+        except Exception as e:
+            print(f"  ❌ 写入环境变量失败: {e}")
+            print(f"     请手动将以下内容添加到 ~/{rc_file.name}:")
+            for var_line in env_vars:
+                print(f"    {var_line}")
+
+        return True
+
     def run(self):
         """执行完整设置"""
         print("="*60)
@@ -250,6 +355,10 @@ class EnvSetup:
         print(f"JDK: {self.java_home}")
         print(f"Android SDK: {self.android_home}")
         print(f"Gradle 缓存: {self.gradle_user_home}")
+        
+        # 自动配置环境变量
+        self._setup_shell_env()
+        
         print(f"\n现在可以运行: python deploy/build.py build")
         
         return True
