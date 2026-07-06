@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.json.JSONObject
 import javax.inject.Inject
 import kotlinx.coroutines.launch
 
@@ -85,6 +87,37 @@ class ChildModeSettingsScreen @Inject constructor(
     suspend fun setPin(pin: String) {
         userPreferencesDataStore.childModePin.set(pin)
     }
+
+    suspend fun getRemoteWhitelistUrls(): List<String> {
+        val str = userPreferencesDataStore.remoteWhitelistUrls.get()
+        if (str.isEmpty()) return emptyList()
+        return str.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    suspend fun isRemoteWhitelistOpen(): Boolean =
+        userPreferencesDataStore.remoteWhitelistOpen.get()
+
+    suspend fun getWhitelistEnabledStates(): Map<String, Boolean> {
+        val json = userPreferencesDataStore.whitelistEnabledStates.get()
+        if (json.isEmpty() || json == "{}") return emptyMap()
+        return try {
+            val obj = JSONObject(json)
+            val map = mutableMapOf<String, Boolean>()
+            for (key in obj.keys()) {
+                map[key] = obj.optBoolean(key, true)
+            }
+            map
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    suspend fun setWhitelistEnabledState(url: String, enabled: Boolean) {
+        val current = getWhitelistEnabledStates().toMutableMap()
+        current[url] = enabled
+        val json = JSONObject(current.toMap()).toString()
+        userPreferencesDataStore.whitelistEnabledStates.set(json)
+    }
 }
 
 /**
@@ -114,6 +147,12 @@ private fun extractDomain(input: String): String {
     return s.trimEnd('.')
 }
 
+data class WhitelistItem(
+    val url: String,
+    val isRemote: Boolean,
+    val isEnabled: Boolean,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChildModeSettingsScreen(
@@ -122,13 +161,17 @@ fun ChildModeSettingsScreen(
 ) {
     val scope = rememberCoroutineScope()
     var childModeEnabled by remember { mutableStateOf(false) }
-    var whitelistUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+    var localWhitelistUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+    var remoteWhitelistUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+    var whitelistEnabledStates by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var pinCode by remember { mutableStateOf("") }
 
     // Load data on first composition
     LaunchedEffect(Unit) {
         childModeEnabled = childModeSettingsScreen.isChildModeEnabled()
-        whitelistUrls = childModeSettingsScreen.getWhitelistUrls()
+        localWhitelistUrls = childModeSettingsScreen.getWhitelistUrls()
+        remoteWhitelistUrls = childModeSettingsScreen.getRemoteWhitelistUrls()
+        whitelistEnabledStates = childModeSettingsScreen.getWhitelistEnabledStates()
         pinCode = childModeSettingsScreen.getPin()
     }
 
@@ -152,11 +195,19 @@ fun ChildModeSettingsScreen(
     var pendingPinAction by remember { mutableStateOf<String?>(null) }
     var showWhitelistDialog by remember { mutableStateOf(false) }
 
+    // Compute merged whitelist: remote first, then local
+    val mergedItems = remember(localWhitelistUrls, remoteWhitelistUrls, whitelistEnabledStates) {
+        val remote = remoteWhitelistUrls.map { WhitelistItem(it, true, whitelistEnabledStates[it] ?: true) }
+        val local = localWhitelistUrls.map { WhitelistItem(it, false, whitelistEnabledStates[it] ?: true) }
+        remote + local
+    }
+
     // Whitelist count summary
-    val whitelistCount = if (whitelistUrls.isEmpty()) {
+    val allUrlsCount = localWhitelistUrls.size + remoteWhitelistUrls.size
+    val whitelistCount = if (allUrlsCount == 0) {
         stringResource(R.string.child_mode_whitelist_empty)
     } else {
-        "${whitelistUrls.size} URLs"
+        "${allUrlsCount} URLs"
     }
 
     Scaffold(
@@ -375,7 +426,7 @@ fun ChildModeSettingsScreen(
                     onClick = {
                         val domain = extractDomain(dialogInput)
                         if (domain.isNotEmpty()) {
-                            val newList = whitelistUrls.toMutableList()
+                            val newList = localWhitelistUrls.toMutableList()
                             if (isAddMode) {
                                 if (!newList.contains(domain)) {
                                     newList.add(domain)
@@ -385,7 +436,7 @@ fun ChildModeSettingsScreen(
                                     newList[editingIndex] = domain
                                 }
                             }
-                            whitelistUrls = newList
+                            localWhitelistUrls = newList
                             scope.launch { childModeSettingsScreen.saveWhitelistUrls(newList) }
                         }
                         showEditDialog = false
@@ -411,10 +462,10 @@ fun ChildModeSettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val newList = whitelistUrls.toMutableList()
+                        val newList = localWhitelistUrls.toMutableList()
                         if (editingIndex in newList.indices) {
                             newList.removeAt(editingIndex)
-                            whitelistUrls = newList
+                            localWhitelistUrls = newList
                             scope.launch { childModeSettingsScreen.saveWhitelistUrls(newList) }
                         }
                         showDeleteDialog = false
@@ -431,7 +482,7 @@ fun ChildModeSettingsScreen(
         )
     }
 
-    // Whitelist Dialog
+    // Whitelist Dialog - Merged remote + local with checkboxes
     if (showWhitelistDialog) {
         AlertDialog(
             onDismissRequest = { showWhitelistDialog = false },
@@ -443,7 +494,7 @@ fun ChildModeSettingsScreen(
                 ) {
                     Text(stringResource(R.string.child_mode_whitelist))
                     Text(
-                        "${whitelistUrls.size}",
+                        "${allUrlsCount}",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -451,7 +502,7 @@ fun ChildModeSettingsScreen(
             },
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    if (whitelistUrls.isEmpty()) {
+                    if (mergedItems.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -465,66 +516,76 @@ fun ChildModeSettingsScreen(
                             )
                         }
                     } else {
+                        val remoteItems = mergedItems.filter { it.isRemote }
+                        val localItems = mergedItems.filter { !it.isRemote }
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .let { mod ->
-                                    if (whitelistUrls.size > 5) {
-                                        mod.heightIn(max = 320.dp)
+                                    if (mergedItems.size > 5) {
+                                        mod.heightIn(max = 400.dp)
                                     } else mod
                                 }
                         ) {
-                            itemsIndexed(whitelistUrls) { index, url ->
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 3.dp),
-                                    shape = MaterialTheme.shapes.medium,
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            url,
-                                            modifier = Modifier.weight(1f),
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        TextButton(
-                                            onClick = {
-                                                editingIndex = index
-                                                dialogInput = url
-                                                isAddMode = false
-                                                showEditDialog = true
+                            // Remote whitelist section
+                            if (remoteItems.isNotEmpty()) {
+                                item {
+                                    Text(
+                                        "${stringResource(R.string.child_mode_whitelist)} (远程)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                                    )
+                                }
+                                itemsIndexed(remoteItems) { _, item ->
+                                    WhitelistEntryRow(
+                                        item = item,
+                                        onToggleEnabled = { enabled ->
+                                            val newStates = whitelistEnabledStates.toMutableMap()
+                                            newStates[item.url] = enabled
+                                            whitelistEnabledStates = newStates
+                                            scope.launch {
+                                                childModeSettingsScreen.setWhitelistEnabledState(item.url, enabled)
                                             }
-                                        ) {
-                                            Text(
-                                                stringResource(R.string.child_mode_whitelist_edit),
-                                                style = MaterialTheme.typography.labelMedium
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        TextButton(
-                                            onClick = {
-                                                editingIndex = index
-                                                showDeleteDialog = true
-                                            },
-                                            colors = ButtonDefaults.textButtonColors(
-                                                contentColor = MaterialTheme.colorScheme.error
-                                            )
-                                        ) {
-                                            Text(
-                                                stringResource(R.string.child_mode_whitelist_del),
-                                                style = MaterialTheme.typography.labelMedium
-                                            )
-                                        }
-                                    }
+                                        },
+                                        onEdit = null,
+                                        onDelete = null,
+                                    )
+                                }
+                            }
+                            // Local whitelist section
+                            if (localItems.isNotEmpty()) {
+                                item {
+                                    Text(
+                                        "${stringResource(R.string.child_mode_whitelist)} (本地)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                                    )
+                                }
+                                itemsIndexed(localItems) { _, item ->
+                                    val localIndex = localWhitelistUrls.indexOf(item.url)
+                                    WhitelistEntryRow(
+                                        item = item,
+                                        onToggleEnabled = { enabled ->
+                                            val newStates = whitelistEnabledStates.toMutableMap()
+                                            newStates[item.url] = enabled
+                                            whitelistEnabledStates = newStates
+                                            scope.launch {
+                                                childModeSettingsScreen.setWhitelistEnabledState(item.url, enabled)
+                                            }
+                                        },
+                                        onEdit = {
+                                            editingIndex = localIndex
+                                            dialogInput = item.url
+                                            isAddMode = false
+                                            showEditDialog = true
+                                        },
+                                        onDelete = {
+                                            editingIndex = localIndex
+                                            showDeleteDialog = true
+                                        },
+                                    )
                                 }
                             }
                         }
@@ -705,5 +766,89 @@ fun ChildModeSettingsScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun WhitelistEntryRow(
+    item: WhitelistItem,
+    onToggleEnabled: (Boolean) -> Unit,
+    onEdit: (() -> Unit)?,
+    onDelete: (() -> Unit)?,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = item.isEnabled,
+                onCheckedChange = onToggleEnabled,
+                modifier = Modifier.padding(end = 4.dp)
+            )
+            Text(
+                item.url,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (onEdit != null) {
+                Spacer(modifier = Modifier.width(6.dp))
+                TextButton(onClick = onEdit) {
+                    Text(
+                        stringResource(R.string.child_mode_whitelist_edit),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.width(6.dp))
+                TextButton(
+                    enabled = false,
+                    onClick = {}
+                ) {
+                    Text(
+                        stringResource(R.string.child_mode_whitelist_edit),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
+            if (onDelete != null) {
+                Spacer(modifier = Modifier.width(6.dp))
+                TextButton(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text(
+                        stringResource(R.string.child_mode_whitelist_del),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.width(6.dp))
+                TextButton(
+                    enabled = false,
+                    onClick = {},
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error.copy(alpha = 0.38f)
+                    )
+                ) {
+                    Text(
+                        stringResource(R.string.child_mode_whitelist_del),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
+        }
     }
 }

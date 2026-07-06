@@ -518,6 +518,54 @@ class UserPreferencesDataStore @Inject constructor(
         defaultValue = ""
     )
 
+    // ===== Remote Config Preferences =====
+
+    /**
+     * The version string from the remote config server.
+     */
+    val remoteConfigVersion: NonNullPreferenceStore<String> = NonNullPreferenceStore(
+        key = stringPreferencesKey(REMOTE_CONFIG_VERSION),
+        dataStore = dataStore,
+        defaultValue = ""
+    )
+
+    /**
+     * The admin PIN from the remote config (MD5 hash).
+     */
+    val remoteConfigPin: NonNullPreferenceStore<String> = NonNullPreferenceStore(
+        key = stringPreferencesKey(REMOTE_CONFIG_PIN),
+        dataStore = dataStore,
+        defaultValue = ""
+    )
+
+    /**
+     * Whether the remote whitelist is open/enabled.
+     */
+    val remoteWhitelistOpen: NonNullPreferenceStore<Boolean> = NonNullPreferenceStore(
+        key = booleanPreferencesKey(REMOTE_WHITELIST_OPEN),
+        dataStore = dataStore,
+        defaultValue = false
+    )
+
+    /**
+     * Remote whitelist URLs, stored as a comma-separated string.
+     */
+    val remoteWhitelistUrls: NonNullPreferenceStore<String> = NonNullPreferenceStore(
+        key = stringPreferencesKey(REMOTE_WHITELIST_URLS),
+        dataStore = dataStore,
+        defaultValue = ""
+    )
+
+    /**
+     * Whitelist entry enabled states, stored as JSON: {"domain":true,"domain2":false}
+     * Contains states for both local and remote whitelist entries.
+     */
+    val whitelistEnabledStates: NonNullPreferenceStore<String> = NonNullPreferenceStore(
+        key = stringPreferencesKey(WHITELIST_ENABLED_STATES),
+        dataStore = dataStore,
+        defaultValue = "{}"
+    )
+
     companion object {
         private const val FILE_NAME = "settings"
     }
@@ -567,3 +615,8 @@ private const val HOSTS_REMOTE_FILE = "hostsRemoteFile"
 private const val CHILD_MODE_ENABLED = "childModeEnabled"
 private const val CHILD_MODE_WHITELIST = "childModeWhitelist"
 private const val CHILD_MODE_PIN = "childModePin"
+private const val REMOTE_CONFIG_VERSION = "remoteConfigVersion"
+private const val REMOTE_CONFIG_PIN = "remoteConfigPin"
+private const val REMOTE_WHITELIST_OPEN = "remoteWhitelistOpen"
+private const val REMOTE_WHITELIST_URLS = "remoteWhitelistUrls"
+private const val WHITELIST_ENABLED_STATES = "whitelistEnabledStates"

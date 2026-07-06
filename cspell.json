@@ -4,6 +4,10 @@
     "words": [
         "allprojects",
         "buildscript",
-        "cspell"
+        "cspell",
+        "kotlinx"
+    ],
+    "ignoreRegExpList": [
+        "/(?:^import\\s+.*$)/gm"
     ]
 }

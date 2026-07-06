@@ -4,6 +4,7 @@ import acr.browser.lightning.browser.di.AppComponent
 import acr.browser.lightning.browser.di.DaggerAppComponent
 import acr.browser.lightning.browser.di.injector
 import acr.browser.lightning.concurrency.AppCoroutineScope
+import acr.browser.lightning.config.ConfigSyncService
 import acr.browser.lightning.database.bookmark.BookmarkExporter
 import acr.browser.lightning.database.bookmark.BookmarkRepository
 import acr.browser.lightning.device.BuildInfo
@@ -43,6 +44,9 @@ class BrowserApp : Application() {
 
     @Inject
     internal lateinit var bookmarkExporter: BookmarkExporter
+
+    @Inject
+    internal lateinit var configSyncService: ConfigSyncService
 
     lateinit var applicationComponent: AppComponent
 
@@ -100,6 +104,9 @@ class BrowserApp : Application() {
                 bookmarkModel.addBookmarkList(assetsBookmarks)
             }
         }
+
+        // Start remote config sync
+        configSyncService.startSync()
 
         if (buildInfo.buildType == BuildType.DEBUG) {
             leakCanaryUtils.setup()
