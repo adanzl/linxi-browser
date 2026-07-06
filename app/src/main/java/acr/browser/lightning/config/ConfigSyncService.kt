@@ -4,18 +4,22 @@ import acr.browser.lightning.concurrency.AppCoroutineScope
 import acr.browser.lightning.concurrency.CoroutineDispatchers
 import acr.browser.lightning.log.Logger
 import acr.browser.lightning.preference.UserPreferencesDataStore
+import android.app.Application
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
+import java.io.File
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class ConfigSyncService @Inject constructor(
+    private val application: Application,
     private val appCoroutineScope: AppCoroutineScope,
     private val coroutineDispatchers: CoroutineDispatchers,
     private val userPreferencesDataStore: UserPreferencesDataStore,
@@ -78,7 +82,7 @@ class ConfigSyncService @Inject constructor(
         return try {
             val response = client.newCall(request).execute()
             if (response.isSuccessful) {
-                response.body?.string()
+                response.body.string()
             } else {
                 logger.log(TAG, "HTTP ${response.code} for $url")
                 null
@@ -92,20 +96,53 @@ class ConfigSyncService @Inject constructor(
     private suspend fun saveConfig(config: RemoteConfig) {
         userPreferencesDataStore.remoteConfigVersion.set(config.version)
         userPreferencesDataStore.remoteConfigPin.set(config.admin?.pin ?: "")
-        userPreferencesDataStore.remoteWhitelistOpen.set(config.whitelist?.open ?: false)
+        val whitelistOpen = config.whitelist?.open ?: false
+        userPreferencesDataStore.remoteWhitelistOpen.set(whitelistOpen)
+        // Sync child mode enabled state with server whitelist open flag
+        userPreferencesDataStore.childModeEnabled.set(whitelistOpen)
         val urlsStr = config.whitelist?.urls?.joinToString(",") ?: ""
         userPreferencesDataStore.remoteWhitelistUrls.set(urlsStr)
 
-        // If remote pin is set, also update local child mode pin (MD5 hash stored as-is)
-        if (config.admin?.pin?.isNotEmpty() == true) {
-            // Only update if no local pin exists yet, or force update
+        // Sync remote pin to local child mode pin
+        val remotePin = config.admin?.pin ?: ""
+        if (remotePin.isNotEmpty()) {
+            // Only update if no local pin exists yet
             val localPin = userPreferencesDataStore.childModePin.get()
             if (localPin.isEmpty()) {
-                userPreferencesDataStore.childModePin.set(config.admin.pin)
+                userPreferencesDataStore.childModePin.set(remotePin)
             }
+        } else {
+            // Server cleared the pin, clear local pin too
+            userPreferencesDataStore.childModePin.set("")
         }
 
-        logger.log(TAG, "Config synced: version=${config.version}, whitelist open=${config.whitelist?.open}")
+        // Save remote marks (homepage quick links)
+        val marksJson = JSONArray(config.marks.map { mark ->
+            org.json.JSONObject().apply {
+                put("title", mark.title)
+                put("url", mark.url)
+                put("position", mark.position)
+            }
+        }).toString()
+        userPreferencesDataStore.remoteMarks.set(marksJson)
+
+        // Invalidate cached homepage so it regenerates with fresh marks
+        val homepageFile = File(File(application.filesDir, "generated-html"), "homepage.html")
+        if (homepageFile.exists()) {
+            homepageFile.delete()
+            logger.log(TAG, "Cached homepage deleted, will regenerate on next tab open")
+        }
+
+        // Log all config
+        logger.log(TAG, "Config synced | version=${config.version}, env=${config.env}, timestamp=${config.timestamp}")
+        logger.log(TAG, "  whitelist: open=$whitelistOpen, urls=${config.whitelist?.urls?.size ?: 0}")
+        logger.log(TAG, "  admin: pin=${if (remotePin.isNotEmpty()) "***" else "(empty)"}")
+        logger.log(TAG, "  marks: count=${config.marks.size}")
+        if (config.marks.isNotEmpty()) {
+            config.marks.forEach { mark ->
+                logger.log(TAG, "    [${mark.position}] ${mark.title} -> ${mark.url}")
+            }
+        }
     }
 
     companion object {

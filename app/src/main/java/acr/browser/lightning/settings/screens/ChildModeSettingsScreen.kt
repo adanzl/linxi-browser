@@ -85,7 +85,8 @@ class ChildModeSettingsScreen @Inject constructor(
     suspend fun getPin(): String = userPreferencesDataStore.childModePin.get()
 
     suspend fun setPin(pin: String) {
-        userPreferencesDataStore.childModePin.set(pin)
+        val value = if (pin.isEmpty()) "" else pin.toMd5()
+        userPreferencesDataStore.childModePin.set(value)
     }
 
     suspend fun getRemoteWhitelistUrls(): List<String> {
@@ -165,6 +166,7 @@ fun ChildModeSettingsScreen(
     var remoteWhitelistUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var whitelistEnabledStates by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var pinCode by remember { mutableStateOf("") }
+    var remoteWhitelistOpen by remember { mutableStateOf(false) }
 
     // Load data on first composition
     LaunchedEffect(Unit) {
@@ -173,6 +175,7 @@ fun ChildModeSettingsScreen(
         remoteWhitelistUrls = childModeSettingsScreen.getRemoteWhitelistUrls()
         whitelistEnabledStates = childModeSettingsScreen.getWhitelistEnabledStates()
         pinCode = childModeSettingsScreen.getPin()
+        remoteWhitelistOpen = childModeSettingsScreen.isRemoteWhitelistOpen()
     }
 
     BackHandler { onUp() }
@@ -269,6 +272,7 @@ fun ChildModeSettingsScreen(
                         )
                         Switch(
                             checked = childModeEnabled,
+                            enabled = !remoteWhitelistOpen,
                             onCheckedChange = {
                                 if (it && pinCode.isNotEmpty()) {
                                     pendingPinAction = "toggle"
@@ -654,7 +658,12 @@ fun ChildModeSettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        if (pinVerifyInput == pinCode) {
+                        val inputHash = if (pinCode.length == 32 && pinCode.all { it.isLetterOrDigit() }) {
+                            pinVerifyInput.toMd5()
+                        } else {
+                            pinVerifyInput
+                        }
+                        if (inputHash == pinCode) {
                             showPinVerifyDialog = false
                             when (pendingPinAction) {
                                 "toggle" -> {
@@ -851,4 +860,10 @@ private fun WhitelistEntryRow(
             }
         }
     }
+}
+
+private fun String.toMd5(): String {
+    val md = java.security.MessageDigest.getInstance("MD5")
+    val digest = md.digest(this.toByteArray())
+    return digest.joinToString("") { "%02x".format(it) }
 }

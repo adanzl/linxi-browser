@@ -170,14 +170,27 @@ class UrlHandler @Inject constructor(
     }
 
     private fun shouldBlockForChildMode(url: String): Boolean {
-        if (!userPreferencesDataStore.childModeEnabled.getUnsafe()) return false
-        val whitelist = userPreferencesDataStore.childModeWhitelist.getUnsafe()
-        if (whitelist.isEmpty()) return false
+        val remoteOpen = userPreferencesDataStore.remoteWhitelistOpen.getUnsafe()
+        val localEnabled = userPreferencesDataStore.childModeEnabled.getUnsafe()
+        if (!localEnabled && !remoteOpen) return false
+
+        val localWhitelist = userPreferencesDataStore.childModeWhitelist.getUnsafe()
+        val remoteWhitelist = userPreferencesDataStore.remoteWhitelistUrls.getUnsafe()
+
+        // Merge local and remote whitelist
+        val combinedList = listOfNotNull(
+            localWhitelist.takeIf { it.isNotEmpty() },
+            remoteWhitelist.takeIf { it.isNotEmpty() }
+        ).flatMap { it.split(",") }
+        val whitelistDomains = combinedList.map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+
+        if (whitelistDomains.isEmpty()) return false
+
         // Allow about: and data: and javascript: URLs
         if (!URLUtil.isNetworkUrl(url)) return false
         val domain = extractDomain(url)
         if (domain.isEmpty()) return false
-        val whitelistDomains = whitelist.split(",").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+
         return !whitelistDomains.contains(domain)
     }
 }

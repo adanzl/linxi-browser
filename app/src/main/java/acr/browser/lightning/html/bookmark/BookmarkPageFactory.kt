@@ -20,11 +20,14 @@ import acr.browser.lightning.html.jsoup.removeElement
 import acr.browser.lightning.html.jsoup.style
 import acr.browser.lightning.html.jsoup.tag
 import acr.browser.lightning.html.jsoup.title
+import acr.browser.lightning.preference.UserPreferencesDataStore
 import acr.browser.lightning.utils.ThemeUtils
 import android.app.Application
 import android.graphics.Bitmap
+import android.util.Log
 import androidx.core.net.toUri
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import java.io.File
 import java.io.FileOutputStream
 import java.io.FileWriter
@@ -39,7 +42,8 @@ class BookmarkPageFactory @Inject constructor(
     private val faviconModel: FaviconModel,
     private val coroutineDispatchers: CoroutineDispatchers,
     private val bookmarkPageReader: BookmarkPageReader,
-    private val themeProvider: ThemeProvider
+    private val themeProvider: ThemeProvider,
+    private val userPreferencesDataStore: UserPreferencesDataStore,
 ) : HtmlPageFactory {
 
     private val title = application.getString(R.string.action_bookmarks)
@@ -65,10 +69,17 @@ class BookmarkPageFactory @Inject constructor(
 
     override suspend fun buildPage(): String = withContext(coroutineDispatchers.io) {
         val bookmarks = bookmarkModel.getAllBookmarksSorted()
+        val remoteMarks = loadRemoteMarks()
         bookmarks.groupBy { it.folder }
             .mapValues { (folder, bookmarks) ->
                 if (folder == Bookmark.Folder.Root) {
-                    construct((bookmarks + bookmarkModel.getFoldersSorted()).map { it.asViewModel() })
+                    // When remote marks exist, replace local bookmarks with remote marks
+                    val items = if (remoteMarks.isNotEmpty()) {
+                        remoteMarks
+                    } else {
+                        bookmarks.map { it.asViewModel() } + bookmarkModel.getFoldersSorted().map { it.asViewModel() }
+                    }
+                    construct(items)
                 } else {
                     construct(bookmarks.map { it.asViewModel() })
                 }
@@ -177,6 +188,52 @@ class BookmarkPageFactory @Inject constructor(
 
         private const val FOLDER_ICON = "folder.png"
         private const val DEFAULT_ICON = "default.png"
+        private const val TAG = "BookmarkPageFactory"
 
     }
+
+    private suspend fun loadRemoteMarks(): List<BookmarkViewModel> {
+        val marksJson = userPreferencesDataStore.remoteMarks.get()
+        if (marksJson == "[]" || marksJson.isEmpty()) return emptyList()
+        return try {
+            val arr = JSONArray(marksJson)
+            val marks = mutableListOf<MarkData>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val title = obj.optString("title", "")
+                val url = obj.optString("url", "")
+                val position = obj.optInt("position", 999)
+                if (title.isNotEmpty() && url.isNotEmpty()) {
+                    marks.add(MarkData(title, url, position))
+                }
+            }
+            marks.sortBy { it.position }
+            Log.d(TAG, "marks loaded: ${marks.map { "[${it.position}]${it.title}" }}")
+            marks.map { mark ->
+                // Generate and cache an icon for each mark (like bookmarks)
+                val iconFile = try {
+                    val uri = mark.url.toUri().toValidUri()
+                    if (uri != null) {
+                        val cachedFile = FaviconModel.getFaviconCacheFile(application, uri)
+                        if (!cachedFile.exists()) {
+                            val bitmap = faviconModel.createDefaultBitmapForTitle(mark.title)
+                            faviconModel.cacheFaviconForUrl(bitmap, mark.url)
+                        }
+                        cachedFile.toString()
+                    } else {
+                        defaultIconFile.toString()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to generate icon for ${mark.title}", e)
+                    defaultIconFile.toString()
+                }
+                BookmarkViewModel(mark.title, mark.url, iconFile)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "loadRemoteMarks error", e)
+            emptyList()
+        }
+    }
+
+    private data class MarkData(val title: String, val url: String, val position: Int)
 }

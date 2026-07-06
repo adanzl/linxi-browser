@@ -247,7 +247,7 @@ class UserPreferencesDataStore @Inject constructor(
     val searchChoice: EnumPreferenceStore<SearchEngineChoice> = EnumPreferenceStore(
         key = intPreferencesKey(SEARCH),
         dataStore = dataStore,
-        defaultValue = SearchEngineChoice.DUCK
+        defaultValue = SearchEngineChoice.BAIDU
     )
 
     /**
@@ -463,7 +463,7 @@ class UserPreferencesDataStore @Inject constructor(
     val searchSuggestionChoice: EnumPreferenceStore<Suggestions> = EnumPreferenceStore(
         key = intPreferencesKey(SEARCH_SUGGESTIONS),
         dataStore = dataStore,
-        defaultValue = Suggestions.DUCK
+        defaultValue = Suggestions.NONE
     )
 
     /**
@@ -566,6 +566,15 @@ class UserPreferencesDataStore @Inject constructor(
         defaultValue = "{}"
     )
 
+    /**
+     * Remote marks (homepage quick links), stored as JSON array.
+     */
+    val remoteMarks: NonNullPreferenceStore<String> = NonNullPreferenceStore(
+        key = stringPreferencesKey(REMOTE_MARKS),
+        dataStore = dataStore,
+        defaultValue = "[]"
+    )
+
     companion object {
         private const val FILE_NAME = "settings"
     }
@@ -620,3 +629,4 @@ private const val REMOTE_CONFIG_PIN = "remoteConfigPin"
 private const val REMOTE_WHITELIST_OPEN = "remoteWhitelistOpen"
 private const val REMOTE_WHITELIST_URLS = "remoteWhitelistUrls"
 private const val WHITELIST_ENABLED_STATES = "whitelistEnabledStates"
+private const val REMOTE_MARKS = "remoteMarks"
