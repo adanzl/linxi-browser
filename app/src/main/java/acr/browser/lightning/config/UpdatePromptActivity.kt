@@ -85,7 +85,7 @@ class UpdatePromptActivity : Activity() {
                 val request = Request.Builder().url(url).get().build()
                 val response = client.newCall(request).execute()
                 if (!response.isSuccessful) {
-                    logger.log(TAG, "Download failed: HTTP ${response.code}")
+                    logger.log(TAG, "Download failed: HTTP ${response.code}, body=${response.body?.string()?.take(200)}")
                     withContext(coroutineDispatchers.main) {
                         Toast.makeText(this@UpdatePromptActivity, R.string.update_download_failed, Toast.LENGTH_SHORT).show()
                         finish()
@@ -94,14 +94,34 @@ class UpdatePromptActivity : Activity() {
                 }
 
                 val body = response.body
+                val contentLength = body.contentLength()
+                logger.log(TAG, "Download response: content-type=${body.contentType()}, length=$contentLength")
+
+                // 清理旧文件
                 val apkFile = File(cacheDir, APK_FILE_NAME)
+                if (apkFile.exists()) {
+                    apkFile.delete()
+                    logger.log(TAG, "Deleted old APK file")
+                }
+
+                // 下载
                 FileOutputStream(apkFile).use { output ->
                     body.byteStream().use { input ->
                         input.copyTo(output)
                     }
                 }
 
-                logger.log(TAG, "APK downloaded to ${apkFile.absolutePath}")
+                // 校验文件
+                if (!apkFile.exists() || apkFile.length() == 0L) {
+                    logger.log(TAG, "Downloaded file is empty")
+                    withContext(coroutineDispatchers.main) {
+                        Toast.makeText(this@UpdatePromptActivity, R.string.update_download_failed, Toast.LENGTH_SHORT).show()
+                        finish()
+                    }
+                    return@launch
+                }
+
+                logger.log(TAG, "APK downloaded: ${apkFile.absolutePath}, size=${apkFile.length()}")
                 withContext(coroutineDispatchers.main) {
                     installApk(apkFile)
                 }
