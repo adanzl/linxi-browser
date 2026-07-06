@@ -5,7 +5,6 @@ import acr.browser.lightning.R
 import acr.browser.lightning.concurrency.AppCoroutineScope
 import acr.browser.lightning.concurrency.CoroutineDispatchers
 import acr.browser.lightning.log.Logger
-import acr.browser.lightning.preference.UserPreferencesDataStore
 import android.app.Application
 import android.content.Intent
 import kotlinx.coroutines.launch
@@ -16,7 +15,6 @@ import javax.inject.Singleton
 class AppUpdateManager @Inject constructor(
     private val application: Application,
     private val logger: Logger,
-    private val userPreferencesDataStore: UserPreferencesDataStore,
     private val appCoroutineScope: AppCoroutineScope,
     private val coroutineDispatchers: CoroutineDispatchers,
 ) {
@@ -42,15 +40,6 @@ class AppUpdateManager @Inject constructor(
             return
         }
 
-        // 检查是否已经提示过此版本
-        val promptedVersion = userPreferencesDataStore.remoteUpdatePromptedVersion.get()
-        if (promptedVersion == remoteVersion) {
-            logger.log(TAG, "checkForUpdate: already prompted for version $remoteVersion")
-            return
-        }
-
-        // 记录已提示，避免重复弹窗
-        userPreferencesDataStore.remoteUpdatePromptedVersion.set(remoteVersion)
         logger.log(TAG, "checkForUpdate: new version found remote=$remoteVersion, current=$currentVersion")
 
         // 在主线程启动 UpdatePromptActivity 展示对话框

@@ -575,16 +575,6 @@ class UserPreferencesDataStore @Inject constructor(
         defaultValue = "[]"
     )
 
-    /**
-     * The last app version that the user was prompted to update to.
-     * Used to avoid repeatedly showing the update dialog for the same version.
-     */
-    val remoteUpdatePromptedVersion: NonNullPreferenceStore<String> = NonNullPreferenceStore(
-        key = stringPreferencesKey(REMOTE_UPDATE_PROMPTED_VERSION),
-        dataStore = dataStore,
-        defaultValue = ""
-    )
-
     companion object {
         private const val FILE_NAME = "settings"
     }
@@ -640,4 +630,3 @@ private const val REMOTE_WHITELIST_OPEN = "remoteWhitelistOpen"
 private const val REMOTE_WHITELIST_URLS = "remoteWhitelistUrls"
 private const val WHITELIST_ENABLED_STATES = "whitelistEnabledStates"
 private const val REMOTE_MARKS = "remoteMarks"
-private const val REMOTE_UPDATE_PROMPTED_VERSION = "remoteUpdatePromptedVersion"
