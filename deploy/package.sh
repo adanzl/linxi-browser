@@ -29,7 +29,7 @@ git pull
 
 echo ""
 echo "============================================"
-echo "2. 构建 ${BUILD_TYPE^} APK"
+echo "2. 构建 $BUILD_TYPE APK"
 echo "============================================"
 export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk}"
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
