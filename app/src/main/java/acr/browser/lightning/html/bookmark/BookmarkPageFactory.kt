@@ -22,12 +22,14 @@ import acr.browser.lightning.html.jsoup.tag
 import acr.browser.lightning.html.jsoup.title
 import acr.browser.lightning.preference.UserPreferencesDataStore
 import acr.browser.lightning.utils.ThemeUtils
+import acr.browser.lightning.config.RemoteConfig
+import acr.browser.lightning.dialog.LoginSession
 import android.app.Application
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.core.net.toUri
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.FileWriter
@@ -193,23 +195,14 @@ class BookmarkPageFactory @Inject constructor(
     }
 
     private suspend fun loadRemoteMarks(): List<BookmarkViewModel> {
-        val marksJson = userPreferencesDataStore.remoteMarks.get()
-        if (marksJson == "[]" || marksJson.isEmpty()) return emptyList()
+        val marksJsonStr = userPreferencesDataStore.remoteMarks.get()
+        if (marksJsonStr.isEmpty() || marksJsonStr == "{}") return emptyList()
         return try {
-            val arr = JSONArray(marksJson)
-            val marks = mutableListOf<MarkData>()
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                val title = obj.optString("title", "")
-                val url = obj.optString("url", "")
-                val position = obj.optInt("position", 999)
-                if (title.isNotEmpty() && url.isNotEmpty()) {
-                    marks.add(MarkData(title, url, position))
-                }
-            }
-            marks.sortBy { it.position }
-            Log.d(TAG, "marks loaded: ${marks.map { "[${it.position}]${it.title}" }}")
-            marks.map { mark ->
+            val marksObj = JSONObject(marksJsonStr)
+            val userId = LoginSession.getUserId(application) ?: ""
+            val markItems = RemoteConfig.getMarksForUser(marksObj, userId)
+            Log.d(TAG, "marks loaded for userId=$userId: ${markItems.map { "[${it.position}]${it.title}" }}")
+            markItems.map { mark ->
                 // Generate and cache an icon for each mark (like bookmarks)
                 val iconFile = try {
                     val uri = mark.url.toUri().toValidUri()

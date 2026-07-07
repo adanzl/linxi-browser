@@ -76,6 +76,13 @@ class TabPager @Inject constructor(
         webViewScrollCoordinator.closeBottomTabDrawer()
     }
 
+    /**
+     * Return the currently visible WebView, or null if none is shown.
+     */
+    fun getCurrentWebView(): WebView? {
+        return container.children.filterIsInstance<WebView>().firstOrNull()
+    }
+
     private fun FrameLayout.removeWebViews(excludeId: Int = -1) {
         children
             .filterIsInstance<WebView>()

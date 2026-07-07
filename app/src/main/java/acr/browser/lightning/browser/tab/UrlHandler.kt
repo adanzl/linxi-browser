@@ -7,6 +7,8 @@ import acr.browser.lightning.browser.di.IncognitoMode
 import acr.browser.lightning.constant.FILE
 import acr.browser.lightning.extensions.snackbar
 import acr.browser.lightning.log.Logger
+import acr.browser.lightning.config.RemoteConfig
+import acr.browser.lightning.dialog.LoginSession
 import acr.browser.lightning.preference.UserPreferencesDataStore
 import acr.browser.lightning.preference.datastore.getUnsafe
 import acr.browser.lightning.utils.IntentUtils
@@ -170,17 +172,30 @@ class UrlHandler @Inject constructor(
     }
 
     private fun shouldBlockForChildMode(url: String): Boolean {
-        val remoteOpen = userPreferencesDataStore.remoteWhitelistOpen.getUnsafe()
+        // Try per-user whitelist resolution first
+        val whitelistJsonStr = userPreferencesDataStore.remoteWhitelistJson.getUnsafe()
+        val userId = LoginSession.getUserId(activity) ?: ""
+        val whitelistConfig = if (whitelistJsonStr.isNotEmpty() && whitelistJsonStr != "{}") {
+            try {
+                val whitelistJson = org.json.JSONObject(whitelistJsonStr)
+                RemoteConfig.getWhitelistForUser(whitelistJson, userId)
+            } catch (_: Exception) {
+                null
+            }
+        } else null
+
+        val remoteOpen = whitelistConfig?.open ?: userPreferencesDataStore.remoteWhitelistOpen.getUnsafe()
         val localEnabled = userPreferencesDataStore.childModeEnabled.getUnsafe()
         if (!localEnabled && !remoteOpen) return false
 
         val localWhitelist = userPreferencesDataStore.childModeWhitelist.getUnsafe()
-        val remoteWhitelist = userPreferencesDataStore.remoteWhitelistUrls.getUnsafe()
+        val remoteWhitelistUrls = whitelistConfig?.urls?.joinToString(",")
+            ?: userPreferencesDataStore.remoteWhitelistUrls.getUnsafe()
 
         // Merge local and remote whitelist
         val combinedList = listOfNotNull(
             localWhitelist.takeIf { it.isNotEmpty() },
-            remoteWhitelist.takeIf { it.isNotEmpty() }
+            remoteWhitelistUrls.takeIf { it.isNotEmpty() }
         ).flatMap { it.split(",") }
         val whitelistDomains = combinedList.map { it.trim().lowercase() }.filter { it.isNotEmpty() }
 

@@ -44,6 +44,8 @@ import acr.browser.lightning.databinding.BrowserBottomTabsBinding
 import acr.browser.lightning.dialog.BrowserDialog
 import acr.browser.lightning.dialog.DialogItem
 import acr.browser.lightning.dialog.LightningDialogBuilder
+import acr.browser.lightning.dialog.LoginDialog
+import acr.browser.lightning.dialog.LoginSession
 import acr.browser.lightning.extensions.color
 import acr.browser.lightning.extensions.drawable
 import acr.browser.lightning.extensions.resizeAndShow
@@ -79,6 +81,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.isActive
 import javax.inject.Inject
 
 /**
@@ -138,6 +143,12 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
 
     @Inject
     internal lateinit var themeProvider: ThemeProvider
+
+    // Periodic localStorage scanner: detect user changes from web page
+    private var localStorageScanScope: kotlinx.coroutines.CoroutineScope? = null
+    private var localStorageScanJob: kotlinx.coroutines.Job? = null
+    /** True once the scan has observed a non-null saveUser in the WebView. */
+    private var webUserSeen = false
 
     @MainHandler
     @Inject
@@ -362,6 +373,177 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
         onBackPressedDispatcher.addCallback {
             presenter.onNavigateBack()
         }
+
+        // Check for saved login session, auto-login if valid
+        tryAutoLogin()
+    }
+
+    /**
+     * Try to auto-login using saved session.
+     * Like MyTodo: check if saveUser exists in localStorage, then try to fetch user list.
+     * If server returns data (cookies valid) -> skip login dialog.
+     * If server returns 401 or network error -> show login dialog.
+     */
+    private fun tryAutoLogin() {
+        android.util.Log.i("BrowserActivity", "tryAutoLogin: hasSavedUser=${LoginSession.hasSavedUser(this)}")
+        if (!LoginSession.hasSavedUser(this)) {
+            android.util.Log.i("BrowserActivity", "No saved user, showing login dialog")
+            showLoginDialog()
+            return
+        }
+        val username = LoginSession.getUsername(this) ?: ""
+        val apiBase = LoginSession.getApiBase(this)
+        if (apiBase == null) {
+            showLoginDialog()
+            return
+        }
+        // Validate saved session by calling getAllUser with persisted cookies
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
+        scope.launch {
+            val valid = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val cookieJar = LoginSession.PersistentCookieJar(this@BrowserActivity)
+                    val client = okhttp3.OkHttpClient.Builder()
+                        .cookieJar(cookieJar)
+                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .build()
+                    val request = okhttp3.Request.Builder()
+                        .url("$apiBase/getAllUser")
+                        .get()
+                        .build()
+                    val response = client.newCall(request).execute()
+                    response.isSuccessful
+                } catch (_: Exception) {
+                    false
+                }
+            }
+            if (valid) {
+                android.util.Log.i("BrowserActivity", "Auto-login OK for user: $username")
+                startLocalStorageScan()
+            } else {
+                android.util.Log.i("BrowserActivity", "Session invalid, showing login dialog")
+                showLoginDialog()
+            }
+        }
+    }
+
+    private fun showLoginDialog() {
+        val loginDialog = LoginDialog()
+        loginDialog.setCallback(object : LoginDialog.LoginCallback {
+            override fun onLoginSuccess(username: String) {
+                android.util.Log.i("BrowserActivity", "User $username logged in successfully")
+                startLocalStorageScan()
+                // Inject tokens immediately and reload — webUserSeen was reset to false by startLocalStorageScan
+                val webView = tabPager.getCurrentWebView()
+                if (webView != null && !webUserSeen) {
+                    injectLocalStorageIfNeeded(webView)
+                }
+            }
+        })
+        loginDialog.show(supportFragmentManager, LoginDialog.TAG)
+    }
+
+    /**
+     * Start periodic scanning of WebView localStorage to detect user changes.
+     * When the web app logs out or switches users, we detect it here and
+     * update native configs (marks, whitelist) accordingly.
+     */
+    private fun startLocalStorageScan() {
+        stopLocalStorageScan()
+        webUserSeen = false
+        localStorageScanScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
+        localStorageScanJob = localStorageScanScope?.launch {
+            while (isActive) {
+                kotlinx.coroutines.delay(LOCAL_STORAGE_SCAN_INTERVAL_MS)
+                checkLocalStorageUser()
+            }
+        }
+        android.util.Log.i("BrowserActivity", "localStorage scan started")
+    }
+
+    private fun stopLocalStorageScan() {
+        localStorageScanJob?.cancel()
+        localStorageScanJob = null
+        localStorageScanScope = null
+    }
+
+    /**
+     * Evaluate JS in the current WebView to read localStorage saveUser.
+     * If the userId changed, update LoginSession and invalidate cached pages.
+     * Only treats null as "logged out" after we've previously seen a non-null value.
+     * Also injects auth tokens into localStorage if the web app doesn't have them yet.
+     */
+    private fun checkLocalStorageUser() {
+        val webView = tabPager.getCurrentWebView() ?: return
+        val currentUrl = webView.url ?: return
+        val apiBase = LoginSession.getApiBase(this) ?: return
+        val webAppRoot = apiBase.removeSuffix("/api").trimEnd('/')
+        if (!currentUrl.startsWith(webAppRoot)) return
+
+        webView.evaluateJavascript("localStorage.getItem('saveUser')") { result ->
+            val webUserId = result?.removeSurrounding("\"")?.takeIf { it != "null" && it.isNotEmpty() }
+            val nativeUserId = LoginSession.getUserId(this@BrowserActivity)
+            if (webUserId != null) {
+                webUserSeen = true
+                if (webUserId != nativeUserId) {
+                    android.util.Log.i("BrowserActivity", "User changed in web: $nativeUserId -> $webUserId")
+                    onWebUserChanged(webUserId)
+                }
+            } else if (webUserSeen && nativeUserId != null) {
+                android.util.Log.i("BrowserActivity", "User logged out in web page")
+                onWebUserLoggedOut()
+            } else if (!webUserSeen && LoginSession.hasSavedUser(this@BrowserActivity)) {
+                // Web app hasn't logged in yet, native session exists — inject tokens
+                injectLocalStorageIfNeeded(webView)
+            }
+        }
+    }
+
+    private fun injectLocalStorageIfNeeded(webView: android.webkit.WebView) {
+        webView.evaluateJavascript("localStorage.getItem('access_token')") { result ->
+            val hasToken = result != null && result != "null" && result.removeSurrounding("\"").isNotEmpty()
+            if (!hasToken) {
+                val js = LoginSession.buildLocalStorageInjection(this@BrowserActivity)
+                if (js != null) {
+                    android.util.Log.i("BrowserActivity", "Injecting localStorage auth tokens and reloading page")
+                    webView.evaluateJavascript(js) { webView.reload() }
+                }
+            }
+        }
+    }
+
+    /**
+     * Called when the web page switched to a different user.
+     * Update LoginSession and invalidate cached homepage/bookmarks.
+     */
+    private fun onWebUserChanged(newUserId: String) {
+        val username = LoginSession.getUsername(this) ?: ""
+        val apiBase = LoginSession.getApiBase(this) ?: ""
+        LoginSession.save(this, username, newUserId, apiBase)
+        invalidateCachedPages()
+        android.util.Log.i("BrowserActivity", "Updated LoginSession userId=$newUserId, caches invalidated")
+    }
+
+    /**
+     * Called when the web page logged out. Clear session and show login dialog.
+     */
+    private fun onWebUserLoggedOut() {
+        stopLocalStorageScan()
+        LoginSession.clear(this)
+        invalidateCachedPages()
+        showLoginDialog()
+    }
+
+    /**
+     * Delete cached homepage/bookmark HTML so they regenerate with the new user's marks.
+     */
+    private fun invalidateCachedPages() {
+        val generatedDir = java.io.File(filesDir, "generated-html")
+        if (generatedDir.exists()) {
+            generatedDir.listFiles()?.forEach { it.delete() }
+        }
+        android.util.Log.i("BrowserActivity", "Cached pages invalidated")
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -371,6 +553,7 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        stopLocalStorageScan()
         presenter.onViewDetached()
     }
 
@@ -857,5 +1040,9 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
         } else {
             View.VISIBLE
         }
+    }
+
+    companion object {
+        private const val LOCAL_STORAGE_SCAN_INTERVAL_MS = 3000L
     }
 }

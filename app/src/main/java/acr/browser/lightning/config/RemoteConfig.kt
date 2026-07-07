@@ -9,8 +9,10 @@ data class RemoteConfig(
     val env: String = "",
     val app: AppConfig? = null,
     val admin: AdminConfig? = null,
-    val whitelist: WhitelistConfig? = null,
-    val marks: List<MarkItem> = emptyList(),
+    /** Raw marks JSON object, keyed by userId. Saved as-is for per-user resolution. */
+    val marksJson: JSONObject = JSONObject(),
+    /** Raw whitelist JSON object, keyed by userId. Saved as-is for per-user resolution. */
+    val whitelistJson: JSONObject = JSONObject(),
 ) {
     companion object {
         fun fromJson(jsonString: String): RemoteConfig? = try {
@@ -34,36 +36,76 @@ data class RemoteConfig(
                 admin = json.optJSONObject("admin")?.let { admin ->
                     AdminConfig(pin = admin.optString("pin", ""))
                 },
-                whitelist = json.optJSONObject("whitelist")?.let { wl ->
-                    WhitelistConfig(
-                        open = wl.optString("open", "false") == "true" || wl.optBoolean("open", false),
-                        urls = parseJsonArray(wl.optJSONArray("urls")),
-                    )
-                },
-                marks = parseMarksArray(json.optJSONArray("marks")),
+                marksJson = json.optJSONObject("marks") ?: JSONObject(),
+                whitelistJson = json.optJSONObject("whitelist") ?: JSONObject(),
             )
         } catch (e: Exception) {
             null
         }
 
-        private fun parseJsonArray(arr: JSONArray?): List<String> {
-            if (arr == null) return emptyList()
-            return (0 until arr.length()).map { arr.optString(it, "") }.filter { it.isNotEmpty() }
-        }
-
-        private fun parseMarksArray(arr: JSONArray?): List<MarkItem> {
-            if (arr == null) return emptyList()
+        /**
+         * Extract marks for a specific user from the raw marks JSON.
+         * If the userId doesn't exist as a key, return empty list.
+         *
+         * Format:
+         * {
+         *   "3": { "position": 1, "title": "X", "url": "..." },   ← single mark (object)
+         *   "4": [{ "position": 1, "title": "Y", "url": "..." }]  ← multiple marks (array)
+         * }
+         */
+        fun getMarksForUser(marksJson: JSONObject, userId: String): List<MarkItem> {
+            if (userId.isEmpty() || !marksJson.has(userId)) return emptyList()
             val result = mutableListOf<MarkItem>()
-            for (i in 0 until arr.length()) {
-                val obj = arr.optJSONObject(i) ?: continue
-                val title = obj.optString("title", "")
-                val url = obj.optString("url", "")
-                val position = obj.optInt("position", 0)
-                if (title.isNotEmpty() && url.isNotEmpty()) {
-                    result.add(MarkItem(title = title, url = url, position = position))
+            when (val value = marksJson.get(userId)) {
+                is JSONObject -> {
+                    val mark = parseMarkItem(value)
+                    if (mark != null) result.add(mark)
+                }
+                is JSONArray -> {
+                    for (i in 0 until value.length()) {
+                        val obj = value.optJSONObject(i) ?: continue
+                        val mark = parseMarkItem(obj)
+                        if (mark != null) result.add(mark)
+                    }
                 }
             }
             return result.sortedBy { it.position }
+        }
+
+        /**
+         * Extract whitelist config for a specific user from the raw whitelist JSON.
+         * If the userId doesn't exist as a key, return empty config (open=false, no urls).
+         *
+         * Format:
+         * {
+         *   "3": { "open": "false", "urls": [...] },   ← user 3's config
+         *   "4": { "open": "true", "urls": [...] }     ← user 4's config
+         * }
+         */
+        fun getWhitelistForUser(whitelistJson: JSONObject, userId: String): WhitelistConfig {
+            if (userId.isEmpty() || !whitelistJson.has(userId)) {
+                return WhitelistConfig(open = false, urls = emptyList())
+            }
+            val userObj = whitelistJson.optJSONObject(userId)
+                ?: return WhitelistConfig(open = false, urls = emptyList())
+            return WhitelistConfig(
+                open = userObj.optString("open", "false") == "true" || userObj.optBoolean("open", false),
+                urls = parseStringArray(userObj.optJSONArray("urls")),
+            )
+        }
+
+        private fun parseMarkItem(obj: JSONObject): MarkItem? {
+            val title = obj.optString("title", "")
+            val url = obj.optString("url", "")
+            val position = obj.optInt("position", 0)
+            return if (title.isNotEmpty() && url.isNotEmpty()) {
+                MarkItem(title = title, url = url, position = position)
+            } else null
+        }
+
+        private fun parseStringArray(arr: JSONArray?): List<String> {
+            if (arr == null) return emptyList()
+            return (0 until arr.length()).map { arr.optString(it, "") }.filter { it.isNotEmpty() }
         }
     }
 }

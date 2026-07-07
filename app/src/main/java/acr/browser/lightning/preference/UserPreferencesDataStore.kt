@@ -567,12 +567,21 @@ class UserPreferencesDataStore @Inject constructor(
     )
 
     /**
-     * Remote marks (homepage quick links), stored as JSON array.
+     * Remote marks (homepage quick links), stored as raw JSON object keyed by userId.
      */
     val remoteMarks: NonNullPreferenceStore<String> = NonNullPreferenceStore(
         key = stringPreferencesKey(REMOTE_MARKS),
         dataStore = dataStore,
-        defaultValue = "[]"
+        defaultValue = "{}"
+    )
+
+    /**
+     * Remote whitelist config, stored as raw JSON object keyed by userId.
+     */
+    val remoteWhitelistJson: NonNullPreferenceStore<String> = NonNullPreferenceStore(
+        key = stringPreferencesKey(REMOTE_WHITELIST_JSON),
+        dataStore = dataStore,
+        defaultValue = "{}"
     )
 
     companion object {
@@ -628,5 +637,6 @@ private const val REMOTE_CONFIG_VERSION = "remoteConfigVersion"
 private const val REMOTE_CONFIG_PIN = "remoteConfigPin"
 private const val REMOTE_WHITELIST_OPEN = "remoteWhitelistOpen"
 private const val REMOTE_WHITELIST_URLS = "remoteWhitelistUrls"
+private const val REMOTE_WHITELIST_JSON = "remoteWhitelistJson"
 private const val WHITELIST_ENABLED_STATES = "whitelistEnabledStates"
 private const val REMOTE_MARKS = "remoteMarks"

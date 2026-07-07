@@ -11,7 +11,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -97,11 +97,17 @@ class ConfigSyncService @Inject constructor(
     private suspend fun saveConfig(config: RemoteConfig) {
         userPreferencesDataStore.remoteConfigVersion.set(config.version)
         userPreferencesDataStore.remoteConfigPin.set(config.admin?.pin ?: "")
-        val whitelistOpen = config.whitelist?.open ?: false
-        userPreferencesDataStore.remoteWhitelistOpen.set(whitelistOpen)
-        // Sync child mode enabled state with server whitelist open flag
-        userPreferencesDataStore.childModeEnabled.set(whitelistOpen)
-        val urlsStr = config.whitelist?.urls?.joinToString(",") ?: ""
+
+        // Save raw marks/whitelist JSON objects for per-user resolution at read time
+        userPreferencesDataStore.remoteMarks.set(config.marksJson.toString())
+        userPreferencesDataStore.remoteWhitelistJson.set(config.whitelistJson.toString())
+
+        // Also resolve whitelist for current logged-in user (backward compatibility for UrlHandler, ChildModeSettingsScreen)
+        val currentUserId = acr.browser.lightning.dialog.LoginSession.getUserId(application) ?: ""
+        val userWhitelist = RemoteConfig.getWhitelistForUser(config.whitelistJson, currentUserId)
+        userPreferencesDataStore.remoteWhitelistOpen.set(userWhitelist.open)
+        userPreferencesDataStore.childModeEnabled.set(userWhitelist.open)
+        val urlsStr = userWhitelist.urls.joinToString(",")
         userPreferencesDataStore.remoteWhitelistUrls.set(urlsStr)
 
         // Sync remote pin to local child mode pin
@@ -117,15 +123,7 @@ class ConfigSyncService @Inject constructor(
             userPreferencesDataStore.childModePin.set("")
         }
 
-        // Save remote marks (homepage quick links)
-        val marksJson = JSONArray(config.marks.map { mark ->
-            org.json.JSONObject().apply {
-                put("title", mark.title)
-                put("url", mark.url)
-                put("position", mark.position)
-            }
-        }).toString()
-        userPreferencesDataStore.remoteMarks.set(marksJson)
+        // Save remote marks (homepage quick links) - raw JSON object now saved above
 
         // Invalidate cached homepage so it regenerates with fresh marks
         val homepageFile = File(File(application.filesDir, "generated-html"), "homepage.html")
@@ -147,14 +145,9 @@ class ConfigSyncService @Inject constructor(
 
         // Log all config
         logger.log(TAG, "Config synced | version=${config.version}, env=${config.env}, timestamp=${config.timestamp}")
-        logger.log(TAG, "  whitelist: open=$whitelistOpen, urls=${config.whitelist?.urls?.size ?: 0}")
+        logger.log(TAG, "  whitelist: open=${userWhitelist.open}, urls=${userWhitelist.urls.size}")
         logger.log(TAG, "  admin: pin=${if (remotePin.isNotEmpty()) "***" else "(empty)"}")
-        logger.log(TAG, "  marks: count=${config.marks.size}")
-        if (config.marks.isNotEmpty()) {
-            config.marks.forEach { mark ->
-                logger.log(TAG, "    [${mark.position}] ${mark.title} -> ${mark.url}")
-            }
-        }
+        logger.log(TAG, "  marks: rawJson keys=${config.marksJson.keys().asSequence().toList()}")
     }
 
     companion object {

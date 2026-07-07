@@ -374,6 +374,14 @@ would like to use:
     <string name="child_mode_pin_mismatch">PINs do not match</string>
     <string name="child_mode_pin_not_set">Not set</string>
 
+    <!-- Login Dialog -->
+    <string name="login_title">用户登录</string>
+    <string name="login_button">登 录</string>
+    <string name="login_select_user">选择用户</string>
+    <string name="login_error_password">密码错误</string>
+    <string name="login_error_network">登录失败，请重试</string>
+    <string name="login_loading">登录中…</string>
+
     <!-- App Update -->
     <string name="update_title">发现新版本</string>
     <string name="update_message">新版本 %1$s 可用，是否下载并安装？</string>

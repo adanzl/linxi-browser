@@ -5,6 +5,8 @@ import acr.browser.lightning.browser.theme.ThemeProvider
 import acr.browser.lightning.concurrency.CoroutineDispatchers
 import acr.browser.lightning.constant.FILE
 import acr.browser.lightning.constant.UTF8
+import acr.browser.lightning.config.RemoteConfig
+import acr.browser.lightning.dialog.LoginSession
 import acr.browser.lightning.html.HtmlPageFactory
 import acr.browser.lightning.html.jsoup.andBuild
 import acr.browser.lightning.html.jsoup.body
@@ -18,7 +20,6 @@ import acr.browser.lightning.preference.UserPreferencesDataStore
 import acr.browser.lightning.search.SearchEngineProvider
 import android.app.Application
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileWriter
@@ -86,28 +87,13 @@ class HomePageFactory @Inject constructor(
     }
     
     private suspend fun buildMarksHtml(): String {
-        val marksJson = userPreferencesDataStore.remoteMarks.get()
-        android.util.Log.d("HomePageFactory", "raw marksJson: $marksJson")
-        if (marksJson == "[]" || marksJson.isEmpty()) return ""
+        val marksJsonStr = userPreferencesDataStore.remoteMarks.get()
+        if (marksJsonStr.isEmpty() || marksJsonStr == "{}") return ""
         return try {
-            val arr = JSONArray(marksJson)
-            data class Mark(val title: String, val url: String, val position: Int)
-            val items = mutableListOf<Mark>()
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                val title = obj.optString("title", "")
-                val url = obj.optString("url", "")
-                val position = obj.optInt("position", 999)
-                if (title.isNotEmpty() && url.isNotEmpty()) {
-                    items.add(Mark(title, url, position))
-                }
-            }
-            // Log BEFORE sort to see original JSON array order
-            android.util.Log.d("HomePageFactory", "raw marksJson: $marksJson")
-            android.util.Log.d("HomePageFactory", "parsed items (JSON order): ${items.map { "[p${it.position}]${it.title}" }}")
-            // Sort by position explicitly
-            items.sortBy { it.position }
-            android.util.Log.d("HomePageFactory", "after sort: ${items.map { "[p${it.position}]${it.title}" }}")
+            val marksObj = JSONObject(marksJsonStr)
+            val userId = LoginSession.getUserId(application) ?: ""
+            val items = RemoteConfig.getMarksForUser(marksObj, userId)
+            android.util.Log.d("HomePageFactory", "marks for userId=$userId: ${items.map { "[p${it.position}]${it.title}" }}")
             val sb = StringBuilder("<div class='marks-container'>")
             for (item in items) {
                 sb.append("<a class='mark-item' href='${escapeHtml(item.url)}'>")
