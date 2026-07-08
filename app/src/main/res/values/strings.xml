@@ -389,4 +389,11 @@ would like to use:
     <string name="update_later">稍后</string>
     <string name="update_download_failed">下载失败，请稍后重试</string>
     <string name="update_install_failed">安装失败，请手动安装</string>
+
+    <!-- Password Save Dialog -->
+    <string name="password_save_title">保存密码？</string>
+    <string name="password_save_message">是否保存 %1$s 的密码？</string>
+    <string name="password_save">保存</string>
+    <string name="password_never">暂不</string>
+    <string name="password_filled">已自动填充密码</string>
 </resources>

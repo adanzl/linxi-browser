@@ -91,10 +91,12 @@ class WebViewFactory @Inject constructor(
                     domStorageEnabled = true
                     databaseEnabled = true
                     cacheMode = WebSettings.LOAD_DEFAULT
+                    setSaveFormData(true)
                 } else {
                     domStorageEnabled = false
                     databaseEnabled = false
                     cacheMode = WebSettings.LOAD_NO_CACHE
+                    setSaveFormData(false)
                 }
 
                 setSupportZoom(true)

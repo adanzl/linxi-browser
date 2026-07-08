@@ -2,6 +2,8 @@ package acr.browser.lightning.browser.tab
 
 import acr.browser.lightning.browser.download.PendingDownload
 import acr.browser.lightning.browser.image.IconFreeze
+import acr.browser.lightning.browser.password.PasswordJsInterface
+import acr.browser.lightning.log.NoOpLogger
 import acr.browser.lightning.browser.view.setCompositeOnFocusChangeListener
 import acr.browser.lightning.browser.view.setCompositeTouchListener
 import acr.browser.lightning.concurrency.CoroutineDispatchers
@@ -82,6 +84,10 @@ class TabAdapter @AssistedInject constructor(
     private val downloadsShareFlow = MutableSharedFlow<PendingDownload>()
     private val focusSharedFlow = MutableSharedFlow<Unit>()
 
+    companion object {
+        private const val PASSWORD_JS_INTERFACE_KEY = 0x70617373 // "pass"
+    }
+
     private var previewGeneratedTime = System.currentTimeMillis()
 
     override val id: Int = if (tabInitializer is FreezableBundleInitializer) {
@@ -99,6 +105,24 @@ class TabAdapter @AssistedInject constructor(
         get() = webViewLazy.value.apply {
             webViewClient = tabWebViewClient
             webChromeClient = tabWebChromeClient
+
+            // Add password manager JS interface (only once per WebView instance)
+            if (getTag(PASSWORD_JS_INTERFACE_KEY) == null) {
+                val jsInterface = PasswordJsInterface(
+                    logger = NoOpLogger(),
+                    onFormSubmit = { domain, username, password ->
+                        post {
+                            val ctx = context
+                            if (ctx is android.app.Activity && !ctx.isFinishing && !ctx.isDestroyed) {
+                                acr.browser.lightning.browser.password.SavePasswordDialog.show(ctx, domain, username, password) {}
+                            }
+                        }
+                    }
+                )
+                addJavascriptInterface(jsInterface, PasswordJsInterface.INTERFACE_NAME)
+                setTag(PASSWORD_JS_INTERFACE_KEY, true)
+            }
+
             setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
                 tabCoroutineScope.launch {
                     downloadsShareFlow.emit(

@@ -380,9 +380,10 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
 
     /**
      * Try to auto-login using saved session.
-     * Like MyTodo: check if saveUser exists in localStorage, then try to fetch user list.
-     * If server returns data (cookies valid) -> skip login dialog.
-     * If server returns 401 or network error -> show login dialog.
+     * If we have a saved user with tokens, skip the login dialog entirely.
+     * The localStorage scan will inject tokens into the WebView and reload.
+     * If the web session is truly invalid, the scan will detect logout and
+     * re-show the login dialog.
      */
     private fun tryAutoLogin() {
         android.util.Log.i("BrowserActivity", "tryAutoLogin: hasSavedUser=${LoginSession.hasSavedUser(this)}")
@@ -397,35 +398,12 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
             showLoginDialog()
             return
         }
-        // Validate saved session by calling getAllUser with persisted cookies
-        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
-        scope.launch {
-            val valid = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                try {
-                    val cookieJar = LoginSession.PersistentCookieJar(this@BrowserActivity)
-                    val client = okhttp3.OkHttpClient.Builder()
-                        .cookieJar(cookieJar)
-                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                        .build()
-                    val request = okhttp3.Request.Builder()
-                        .url("$apiBase/getAllUser")
-                        .get()
-                        .build()
-                    val response = client.newCall(request).execute()
-                    response.isSuccessful
-                } catch (_: Exception) {
-                    false
-                }
-            }
-            if (valid) {
-                android.util.Log.i("BrowserActivity", "Auto-login OK for user: $username")
-                startLocalStorageScan()
-            } else {
-                android.util.Log.i("BrowserActivity", "Session invalid, showing login dialog")
-                showLoginDialog()
-            }
-        }
+
+        // We have a saved user — trust local session and skip login dialog.
+        // The localStorage scan will inject tokens into WebView if needed.
+        // If the web session is truly dead, the scan detects logout and re-shows dialog.
+        android.util.Log.i("BrowserActivity", "Auto-login for saved user: $username, starting localStorage scan")
+        startLocalStorageScan()
     }
 
     private fun showLoginDialog() {
@@ -489,6 +467,10 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
                 if (webUserId != nativeUserId) {
                     android.util.Log.i("BrowserActivity", "User changed in web: $nativeUserId -> $webUserId")
                     onWebUserChanged(webUserId)
+                } else {
+                    // Same user — but check if native token is fresher than web token
+                    // (e.g. after app restart the web localStorage has an expired token)
+                    maybeRefreshWebToken(webView)
                 }
             } else if (webUserSeen && nativeUserId != null) {
                 android.util.Log.i("BrowserActivity", "User logged out in web page")
@@ -507,6 +489,27 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
                 val js = LoginSession.buildLocalStorageInjection(this@BrowserActivity)
                 if (js != null) {
                     android.util.Log.i("BrowserActivity", "Injecting localStorage auth tokens and reloading page")
+                    webView.evaluateJavascript(js) { webView.reload() }
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if the native token has a longer validity than the web token.
+     * If so, re-inject tokens and reload (handles app restart with expired web token).
+     */
+    private fun maybeRefreshWebToken(webView: android.webkit.WebView) {
+        val nativeExpiresAt = LoginSession.getTokenExpiresAt(this@BrowserActivity)
+        webView.evaluateJavascript("localStorage.getItem('access_token_expires_at')") { result ->
+            val webExpiresAt = result?.removeSurrounding("\"")?.toLongOrNull() ?: 0L
+            // Re-inject if native token is fresher, or if native has a token but web doesn't
+            val shouldRefresh = nativeExpiresAt > webExpiresAt
+                    || (LoginSession.getAccessToken(this@BrowserActivity) != null && webExpiresAt == 0L)
+            if (shouldRefresh) {
+                val js = LoginSession.buildLocalStorageInjection(this@BrowserActivity)
+                if (js != null) {
+                    android.util.Log.i("BrowserActivity", "Re-injecting tokens (native=$nativeExpiresAt, web=$webExpiresAt)")
                     webView.evaluateJavascript(js) { webView.reload() }
                 }
             }

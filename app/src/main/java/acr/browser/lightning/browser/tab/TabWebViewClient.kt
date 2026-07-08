@@ -14,6 +14,9 @@ import acr.browser.lightning.preference.UserPreferencesDataStore
 import acr.browser.lightning.preference.datastore.getUnsafe
 import acr.browser.lightning.ssl.SslState
 import acr.browser.lightning.ssl.SslWarningPreferences
+import acr.browser.lightning.dialog.LoginSession
+import acr.browser.lightning.browser.password.PasswordJsInterface
+import acr.browser.lightning.browser.password.PasswordManager
 import android.annotation.SuppressLint
 import android.app.Application
 import android.graphics.Bitmap
@@ -119,6 +122,7 @@ class TabWebViewClient @AssistedInject constructor(
     private var zoomScale: Float = 0.0F
     private var urlWithSslError: String? = null
 
+
     private fun shouldBlockRequest(pageUrl: String, requestUrl: String) =
         !allowListModel.isUrlAllowedAds(pageUrl) &&
             adBlocker.isAd(requestUrl)
@@ -154,6 +158,66 @@ class TabWebViewClient @AssistedInject constructor(
                 }
             }
         })
+
+        // Auto-login: inject tokens into WebView localStorage when the web app page loads.
+        // This ensures the web app sees valid tokens on every page load (e.g. after app restart).
+        tryAutoLoginInject(view, url)
+
+        // Password manager: inject detection script + auto-fill saved passwords
+        enablePasswordManager(view, url)
+    }
+
+    /**
+     * Password manager integration:
+     * 1. Inject JS to detect form submissions with password fields
+     * 2. Auto-fill saved passwords if available for this domain
+     * 3. Add autocomplete attributes for Android Autofill framework (when available)
+     */
+    private fun enablePasswordManager(view: WebView, url: String) {
+        // Skip local/asset pages
+        if (url.startsWith("file://") || url.startsWith("about:") || url.startsWith("content://")) return
+
+        // 1. Inject password detection script
+        view.evaluateJavascript(PasswordJsInterface.getDetectionScript(), null)
+
+        // 2. Auto-fill saved password if available
+        val domain = extractDomain(url) ?: return
+        val saved = PasswordManager.getPassword(view.context, domain) ?: return
+        logger.log(TAG, "Auto-filling saved password for domain=$domain")
+        view.evaluateJavascript(PasswordJsInterface.getAutofillScript(saved.username, saved.password), null)
+    }
+
+    private fun extractDomain(url: String): String? {
+        return try {
+            android.net.Uri.parse(url).host
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Check if the page URL belongs to the web app and, if so, inject auth tokens
+     * into localStorage so the web app can auto-login.
+     * Only injects if the WebView doesn't already have valid tokens (prevents reload loops).
+     */
+    private fun tryAutoLoginInject(view: WebView, url: String) {
+        val ctx = view.context
+        if (!LoginSession.hasSavedUser(ctx)) return
+        val apiBase = LoginSession.getApiBase(ctx) ?: return
+        val webAppRoot = apiBase.removeSuffix("/api").trimEnd('/')
+        if (!url.startsWith(webAppRoot)) return
+
+        // Check if WebView already has tokens — if so, no need to inject (avoids reload loop)
+        view.evaluateJavascript("localStorage.getItem('access_token')") { result ->
+            val hasToken = result != null && result != "null" && result.removeSurrounding("\"").isNotEmpty()
+            if (!hasToken) {
+                val js = LoginSession.buildLocalStorageInjection(ctx) ?: return@evaluateJavascript
+                logger.log(TAG, "Auto-login: injecting tokens into WebView for url=$url")
+                view.evaluateJavascript(js) { view.reload() }
+            } else {
+                logger.log(TAG, "Auto-login: WebView already has tokens, skipping injection for url=$url")
+            }
+        }
     }
 
 
