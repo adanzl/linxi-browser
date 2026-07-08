@@ -8,7 +8,6 @@ import acr.browser.lightning.browser.ui.TabConfiguration
 import acr.browser.lightning.browser.view.RenderingMode
 import acr.browser.lightning.constant.DEFAULT_ENCODING
 import acr.browser.lightning.constant.SCHEME_BOOKMARKS
-import acr.browser.lightning.device.ScreenSize
 import acr.browser.lightning.preference.datastore.EnumPreferenceStore
 import acr.browser.lightning.preference.datastore.NonNullPreferenceStore
 import acr.browser.lightning.preference.datastore.NullablePreferenceStore
@@ -37,7 +36,6 @@ import javax.inject.Singleton
 @Singleton
 class UserPreferencesDataStore @Inject constructor(
     private val application: Application,
-    screenSize: ScreenSize,
 ) {
     private val dataStore = PreferenceDataStoreFactory.create(
         migrations = listOf(
@@ -398,11 +396,7 @@ class UserPreferencesDataStore @Inject constructor(
     val tabConfiguration: EnumPreferenceStore<TabConfiguration> = EnumPreferenceStore(
         key = intPreferencesKey(TAB_CONFIGURATION),
         dataStore = dataStore,
-        defaultValue = if (!screenSize.isTablet()) {
-            TabConfiguration.DRAWER_SIDE
-        } else {
-            TabConfiguration.DESKTOP
-        }
+        defaultValue = TabConfiguration.DRAWER_SIDE
     )
 
     /**

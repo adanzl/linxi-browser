@@ -197,7 +197,7 @@ class UrlHandler @Inject constructor(
             localWhitelist.takeIf { it.isNotEmpty() },
             remoteWhitelistUrls.takeIf { it.isNotEmpty() }
         ).flatMap { it.split(",") }
-        val whitelistDomains = combinedList.map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+        val whitelistDomains = combinedList.map { extractDomain(it) }.filter { it.isNotEmpty() }
 
         if (whitelistDomains.isEmpty()) return false
 
