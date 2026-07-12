@@ -282,7 +282,7 @@ class UserPreferencesDataStore @Inject constructor(
     val useWideViewPortEnabled: NonNullPreferenceStore<Boolean> = NonNullPreferenceStore(
         key = booleanPreferencesKey(USE_WIDE_VIEWPORT),
         dataStore = dataStore,
-        defaultValue = true
+        defaultValue = false
     )
 
     /**
