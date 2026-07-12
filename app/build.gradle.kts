@@ -14,8 +14,8 @@ android {
     defaultConfig {
         minSdk = 26
         targetSdk = 36
-        versionCode = 103
-        versionName = "1.0.0"
+        versionCode = 104
+        versionName = "1.0.1"
         vectorDrawables.useSupportLibrary = true
     }
 
@@ -88,7 +88,7 @@ android {
             dimension = "capabilities"
             buildConfigField("boolean", "FULL_VERSION", "Boolean.parseBoolean(\"true\")")
             applicationId = "acr.browser.lightning.leo"
-            versionCode = 101
+            versionCode = 102
         }
     }
     packaging {
