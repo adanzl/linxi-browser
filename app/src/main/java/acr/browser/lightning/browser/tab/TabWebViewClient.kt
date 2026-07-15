@@ -159,6 +159,12 @@ class TabWebViewClient @AssistedInject constructor(
             }
         })
 
+        // Submit guard: prevent auto-submit triggered by system autofill.
+        // Many login pages auto-submit when both fields are filled, which breaks OAuth flows.
+        // The guard blocks form submission for 2 seconds after page load (or until user clicks),
+        // then releases so manual submission works normally.
+        view.evaluateJavascript(SUBMIT_GUARD_SCRIPT, null)
+
         // Auto-login: inject tokens into WebView localStorage when the web app page loads.
         // This ensures the web app sees valid tokens on every page load (e.g. after app restart).
         tryAutoLoginInject(view, url)
@@ -396,5 +402,27 @@ class TabWebViewClient @AssistedInject constructor(
 
         private const val BLOCKED_RESPONSE_MIME_TYPE = "text/plain"
         private const val BLOCKED_RESPONSE_ENCODING = "utf-8"
+
+        /**
+         * Submit guard script: temporarily blocks form auto-submit after autofill.
+         * Allows manual submission via clicking the submit button.
+         */
+        private val SUBMIT_GUARD_SCRIPT = """
+            (function() {
+                if (window.__submitGuardInstalled) return;
+                window.__submitGuardInstalled = true;
+                var guardActive = true;
+                // Release guard on user click or after 2.5 seconds
+                document.addEventListener('click', function() { guardActive = false; }, {once: true, capture: true});
+                setTimeout(function() { guardActive = false; }, 2500);
+                // Block form submissions while guard is active
+                document.addEventListener('submit', function(e) {
+                    if (guardActive) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                }, true);
+            })();
+        """.trimIndent()
     }
 }
