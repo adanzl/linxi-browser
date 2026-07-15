@@ -50,12 +50,10 @@ class WebViewFactory @Inject constructor(
             requestHeaders.remove(HEADER_SAVEDATA)
         }
 
-        // Always clear X-Requested-With to prevent websites from detecting WebView
-        // (Android WebView adds this header automatically, but system browsers don't send it).
-        // Some sites (e.g., Renaissance Learning) redirect WebView users to different landing pages
-        // based on this header, causing unexpected navigation.
-        requestHeaders[HEADER_REQUESTED_WITH] = ""
-        requestHeaders[HEADER_WAP_PROFILE] = ""
+        if (userPreferencesDataStore.removeIdentifyingHeadersEnabled.get()) {
+            requestHeaders[HEADER_REQUESTED_WITH] = ""
+            requestHeaders[HEADER_WAP_PROFILE] = ""
+        }
 
         return requestHeaders
     }

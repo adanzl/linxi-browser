@@ -112,12 +112,14 @@ class UrlHandler @Inject constructor(
             webView.stopLoading()
             return true
         }
-        return when {
-            headers.isEmpty() -> false
-            else -> {
-                webView.loadUrl(url, headers)
-                true
-            }
+        // Only reload with custom headers if they have meaningful values (not just empty strings).
+        // Calling loadUrl() breaks redirect chains (e.g., OAuth flows), so only use it when needed.
+        val hasMeaningfulHeaders = headers.any { (_, value) -> value.isNotEmpty() }
+        return if (hasMeaningfulHeaders) {
+            webView.loadUrl(url, headers)
+            true
+        } else {
+            false
         }
     }
 
