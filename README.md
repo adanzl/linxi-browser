@@ -44,7 +44,6 @@ alt="Get it on Google Play" height="80">](https://play.google.com/store/apps/det
 
 ### License
 ```
-Copyright 2014 Anthony Restaino
 
 Lightning Browser
 

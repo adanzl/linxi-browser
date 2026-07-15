@@ -5,7 +5,9 @@
         "allprojects",
         "buildscript",
         "cspell",
-        "kotlinx"
+        "gradlew",
+        "kotlinx",
+        "zhaomo"
     ],
     "ignoreRegExpList": [
         "/(?:^import\\s+.*$)/gm"

@@ -1,21 +1,3 @@
 {
-    "java.home": "C:\\SDK\\jdk-21",
-    "java.jdt.ls.java.home": "C:\\SDK\\jdk-21",
-    "java.configuration.runtimes": [
-        {
-            "name": "JavaSE-21",
-            "path": "C:\\SDK\\jdk-21",
-            "default": true
-        }
-    ],
-    "java.import.gradle.java.home": "C:\\SDK\\jdk-21",
-    "java.import.gradle.wrapper.enabled": true,
-    "java.configuration.updateBuildConfiguration": "automatic",
-    "kotlin.languageServer.enabled": true,
-    "kotlin.indexing.enabled": true,
-    "android.sdk.path": "C:\\SDK\\android-sdk",
-    "terminal.integrated.env.windows": {
-        "ANDROID_HOME": "C:\\SDK\\android-sdk",
-        "JAVA_HOME": "C:\\SDK\\jdk-21"
-    }
+    "java.configuration.updateBuildConfiguration": "automatic"
 }

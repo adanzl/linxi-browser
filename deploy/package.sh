@@ -2,7 +2,7 @@
 set -e
 
 # ============================================
-# Linxi Browser - 打包发布脚本
+# 打包发布脚本
 # 用法: bash deploy/package.sh          # Release 包
 #        bash deploy/package.sh debug   # Debug 包
 # ============================================

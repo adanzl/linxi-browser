@@ -79,13 +79,23 @@ class UrlHandler @Inject constructor(
             return continueLoadingUrl(view, url, headers)
         }
 
-        return if (isMailOrIntent(url, view) || intentUtils.startActivityForUrl(view, url)) {
-            // If it was a mailto: link, or an intent, or could be launched elsewhere, do that
-            true
-        } else {
-            // If none of the special conditions was met, continue with loading the url
-            continueLoadingUrl(view, url, headers)
+        if (isMailOrIntent(url, view)) {
+            // If it was a mailto: link, or an intent, could be launched elsewhere, do that
+            return true
         }
+
+        // For web URLs (http/https), always load in the browser instead of opening external apps
+        if (URLUtil.isNetworkUrl(url)) {
+            return continueLoadingUrl(view, url, headers)
+        }
+
+        // For other URLs (custom schemes), try to open externally
+        if (intentUtils.startActivityForUrl(view, url)) {
+            return true
+        }
+
+        // If none of the special conditions was met, continue with loading the url
+        return continueLoadingUrl(view, url, headers)
     }
 
     private fun continueLoadingUrl(
