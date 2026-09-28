@@ -17,7 +17,9 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
 import android.os.Message
+import android.util.Log
 import android.view.View
+import android.webkit.ConsoleMessage
 import android.webkit.GeolocationPermissions
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
@@ -145,6 +147,21 @@ class TabWebChromeClient @AssistedInject constructor(
         tabCoroutineScope.launch {
             progressSharedFlow.emit(newProgress)
         }
+    }
+
+    /**
+     * Forward page JS console output to logcat so SPA failures (e.g. Newsela) are visible
+     * even on release builds where [acr.browser.lightning.log.Logger] is a no-op.
+     */
+    override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+        val msg =
+            "${consoleMessage.messageLevel()} ${consoleMessage.sourceId()}:${consoleMessage.lineNumber()} ${consoleMessage.message()}"
+        when (consoleMessage.messageLevel()) {
+            ConsoleMessage.MessageLevel.ERROR -> Log.e(CONSOLE_TAG, msg)
+            ConsoleMessage.MessageLevel.WARNING -> Log.w(CONSOLE_TAG, msg)
+            else -> Log.d(CONSOLE_TAG, msg)
+        }
+        return true
     }
 
     override fun onReceivedTitle(view: WebView, title: String) {
@@ -291,5 +308,9 @@ class TabWebChromeClient @AssistedInject constructor(
                     //TODO show message and/or turn off setting
                 }
             }
+    }
+
+    companion object {
+        private const val CONSOLE_TAG = "WebViewConsole"
     }
 }

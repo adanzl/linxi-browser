@@ -22,10 +22,12 @@ import android.app.Application
 import android.graphics.Bitmap
 import android.net.http.SslError
 import android.os.Message
+import android.util.Log
 import android.view.LayoutInflater
 import android.webkit.HttpAuthHandler
 import android.webkit.SslErrorHandler
 import android.webkit.URLUtil
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -214,7 +216,7 @@ class TabWebViewClient @AssistedInject constructor(
         if (!url.startsWith(webAppRoot)) return
 
         // Check if WebView already has tokens — if so, no need to inject (avoids reload loop)
-        view.evaluateJavascript("localStorage.getItem('access_token')") { result ->
+        view.evaluateJavascript("localStorage.getItem('${LoginSession.LS_ACCESS_TOKEN}')") { result ->
             val hasToken = result != null && result != "null" && result.removeSurrounding("\"").isNotEmpty()
             if (!hasToken) {
                 val js = LoginSession.buildLocalStorageInjection(ctx) ?: return@evaluateJavascript
@@ -353,11 +355,49 @@ class TabWebViewClient @AssistedInject constructor(
             super.shouldOverrideUrlLoading(view, request)
     }
 
+    override fun onReceivedError(
+        view: WebView,
+        request: WebResourceRequest,
+        error: WebResourceError
+    ) {
+        Log.e(
+            TAG,
+            "onReceivedError mainFrame=${request.isForMainFrame} code=${error.errorCode} " +
+                "desc=${error.description} url=${request.url}"
+        )
+        super.onReceivedError(view, request, error)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onReceivedError(
+        view: WebView,
+        errorCode: Int,
+        description: String,
+        failingUrl: String
+    ) {
+        Log.e(TAG, "onReceivedError(legacy) code=$errorCode desc=$description url=$failingUrl")
+        super.onReceivedError(view, errorCode, description, failingUrl)
+    }
+
+    override fun onReceivedHttpError(
+        view: WebView,
+        request: WebResourceRequest,
+        errorResponse: WebResourceResponse
+    ) {
+        Log.e(
+            TAG,
+            "onReceivedHttpError mainFrame=${request.isForMainFrame} " +
+                "status=${errorResponse.statusCode} reason=${errorResponse.reasonPhrase} url=${request.url}"
+        )
+        super.onReceivedHttpError(view, request, errorResponse)
+    }
+
     override fun shouldInterceptRequest(
         view: WebView,
         request: WebResourceRequest
     ): WebResourceResponse? {
         if (shouldBlockRequest(currentUrl, request.url.toString())) {
+            Log.w(TAG, "AdBlocked url=${request.url} page=$currentUrl")
             val empty = ByteArrayInputStream(emptyResponseByteArray)
             return WebResourceResponse(BLOCKED_RESPONSE_MIME_TYPE, BLOCKED_RESPONSE_ENCODING, empty)
         }

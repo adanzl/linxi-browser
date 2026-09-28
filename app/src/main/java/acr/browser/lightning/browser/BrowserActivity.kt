@@ -23,6 +23,8 @@ import acr.browser.lightning.browser.tab.TabPager
 import acr.browser.lightning.browser.tab.TabViewHolder
 import acr.browser.lightning.browser.tab.TabViewState
 import acr.browser.lightning.browser.theme.ThemeProvider
+import acr.browser.lightning.browser.tv.TvDevice
+import acr.browser.lightning.browser.tv.TvRemoteNavigator
 import acr.browser.lightning.browser.ui.BookmarkConfiguration
 import acr.browser.lightning.browser.ui.TabConfiguration
 import acr.browser.lightning.browser.ui.UiConfiguration
@@ -109,6 +111,8 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
 
     private var pendingScroll = -1
 
+    private var tvRemoteNavigator: TvRemoteNavigator? = null
+
     @Suppress("ConvertLambdaToReference")
     private val launcher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -147,7 +151,7 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
     // Periodic localStorage scanner: detect user changes from web page
     private var localStorageScanScope: kotlinx.coroutines.CoroutineScope? = null
     private var localStorageScanJob: kotlinx.coroutines.Job? = null
-    /** True once the scan has observed a non-null saveUser in the WebView. */
+    /** True once the scan has observed a non-null lx_saveUser in the WebView. */
     private var webUserSeen = false
 
     @MainHandler
@@ -370,12 +374,63 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
 
         tabPager.longPressListener = presenter::onPageLongPress
 
+        setupTvRemoteNavigation()
+
         onBackPressedDispatcher.addCallback {
             presenter.onNavigateBack()
         }
 
         // Check for saved login session, auto-login if valid
         tryAutoLogin()
+    }
+
+    private fun setupTvRemoteNavigation() {
+        val toolbarViews = listOf(
+            binding.homeButton,
+            binding.search,
+            binding.searchRefresh,
+            binding.searchSslStatus
+        )
+        tvRemoteNavigator = TvRemoteNavigator(
+            drawerLayout = binding.drawerLayout,
+            tabDrawer = binding.tabDrawer,
+            bookmarkDrawer = binding.bookmarkDrawer,
+            toolbarViews = toolbarViews,
+            contentFrame = binding.contentFrame,
+            tabList = binding.drawerTabsList.takeIf { it.isVisible },
+            bookmarkList = binding.bookmarkListView,
+            getWebView = { tabPager.getCurrentWebView() },
+            openTabDrawer = { openTabDrawer() },
+            closeTabDrawer = { closeTabDrawer() },
+            openBookmarkDrawer = { openBookmarkDrawer() },
+            closeBookmarkDrawer = { closeBookmarkDrawer() },
+            focusSearch = {
+                binding.search.requestFocus()
+                binding.search.selectAll()
+            }
+        ).also { navigator ->
+            navigator.prepareChromeFocus()
+            listOf(
+                binding.actionBack,
+                binding.actionHome,
+                binding.actionForward,
+                binding.newTabButton,
+                binding.tabHeaderButton,
+                binding.actionAddBookmark,
+                binding.actionPageTools,
+                binding.bookmarkBackButton
+            ).forEach { view ->
+                view.isFocusable = true
+                view.isClickable = true
+                view.foreground = drawable(R.drawable.tv_focus_highlight)
+            }
+            toolbarViews.forEach { it.foreground = drawable(R.drawable.tv_focus_highlight) }
+            // Remote key handling is always active; extra TV polish only when detected.
+            if (TvDevice.isTelevision(this)) {
+                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                navigator.requestInitialFocus()
+            }
+        }
     }
 
     /**
@@ -412,9 +467,9 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
             override fun onLoginSuccess(username: String) {
                 android.util.Log.i("BrowserActivity", "User $username logged in successfully")
                 startLocalStorageScan()
-                // Inject tokens immediately and reload — webUserSeen was reset to false by startLocalStorageScan
+                // Inject tokens only on our web app origin — never into third-party sites (e.g. Newsela).
                 val webView = tabPager.getCurrentWebView()
-                if (webView != null && !webUserSeen) {
+                if (webView != null && !webUserSeen && isOurWebAppUrl(webView.url)) {
                     injectLocalStorageIfNeeded(webView)
                 }
             }
@@ -447,19 +502,16 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
     }
 
     /**
-     * Evaluate JS in the current WebView to read localStorage saveUser.
+     * Evaluate JS in the current WebView to read localStorage lx_saveUser.
      * If the userId changed, update LoginSession and invalidate cached pages.
      * Only treats null as "logged out" after we've previously seen a non-null value.
      * Also injects auth tokens into localStorage if the web app doesn't have them yet.
      */
     private fun checkLocalStorageUser() {
         val webView = tabPager.getCurrentWebView() ?: return
-        val currentUrl = webView.url ?: return
-        val apiBase = LoginSession.getApiBase(this) ?: return
-        val webAppRoot = apiBase.removeSuffix("/api").trimEnd('/')
-        if (!currentUrl.startsWith(webAppRoot)) return
+        if (!isOurWebAppUrl(webView.url)) return
 
-        webView.evaluateJavascript("localStorage.getItem('saveUser')") { result ->
+        webView.evaluateJavascript("localStorage.getItem('${LoginSession.LS_SAVE_USER}')") { result ->
             val webUserId = result?.removeSurrounding("\"")?.takeIf { it != "null" && it.isNotEmpty() }
             val nativeUserId = LoginSession.getUserId(this@BrowserActivity)
             if (webUserId != null) {
@@ -482,8 +534,27 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
         }
     }
 
+    /**
+     * Only our first-party web app should receive native auth tokens in localStorage.
+     * Third-party sites (Newsela, Google SSO, etc.) share the same WebView process but
+     * different origins — injecting there poisons their auth state.
+     */
+    private fun isOurWebAppUrl(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        val apiBase = LoginSession.getApiBase(this) ?: return false
+        val webAppRoot = apiBase.removeSuffix("/api").trimEnd('/')
+        return webAppRoot.isNotEmpty() && url.startsWith(webAppRoot)
+    }
+
     private fun injectLocalStorageIfNeeded(webView: android.webkit.WebView) {
-        webView.evaluateJavascript("localStorage.getItem('access_token')") { result ->
+        if (!isOurWebAppUrl(webView.url)) {
+            android.util.Log.i(
+                "BrowserActivity",
+                "Skip token inject: url=${webView.url} is not our web app"
+            )
+            return
+        }
+        webView.evaluateJavascript("localStorage.getItem('${LoginSession.LS_ACCESS_TOKEN}')") { result ->
             val hasToken = result != null && result != "null" && result.removeSurrounding("\"").isNotEmpty()
             if (!hasToken) {
                 val js = LoginSession.buildLocalStorageInjection(this@BrowserActivity)
@@ -500,8 +571,9 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
      * If so, re-inject tokens and reload (handles app restart with expired web token).
      */
     private fun maybeRefreshWebToken(webView: android.webkit.WebView) {
+        if (!isOurWebAppUrl(webView.url)) return
         val nativeExpiresAt = LoginSession.getTokenExpiresAt(this@BrowserActivity)
-        webView.evaluateJavascript("localStorage.getItem('access_token_expires_at')") { result ->
+        webView.evaluateJavascript("localStorage.getItem('${LoginSession.LS_EXPIRES_AT}')") { result ->
             val webExpiresAt = result?.removeSurrounding("\"")?.toLongOrNull() ?: 0L
             // Re-inject if native token is fresher, or if native has a token but web doesn't
             val shouldRefresh = nativeExpiresAt > webExpiresAt
@@ -582,6 +654,14 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         return keyEventAdapter.adaptKeyEvent(event)?.let(presenter::onKeyComboClick)?.let { true }
             ?: super.onKeyUp(keyCode, event)
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val navigator = tvRemoteNavigator
+        if (navigator != null && navigator.handleKeyEvent(event, currentFocus)) {
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     /**

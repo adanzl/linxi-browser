@@ -82,30 +82,9 @@ class PasswordJsInterface(
                     }
                 }, true);
 
-                // Also detect programmatic submissions (fetch/XHR login)
-                var origFetch = window.fetch;
-                window.fetch = function() {
-                    return origFetch.apply(this, arguments).then(function(response) {
-                        try {
-                            var url = arguments[0] || '';
-                            var opts = arguments[1] || {};
-                            var body = opts.body;
-                            if (typeof body === 'string' && body.indexOf('password') >= 0) {
-                                try {
-                                    var params = JSON.parse(body);
-                                    if (params.password && (params.username || params.user || params.account)) {
-                                        var domain = window.location.hostname || url;
-                                        var user = params.username || params.user || params.account || '';
-                                        if (window.$INTERFACE_NAME && window.$INTERFACE_NAME.onPasswordFormSubmit) {
-                                            window.$INTERFACE_NAME.onPasswordFormSubmit(domain, user, params.password);
-                                        }
-                                    }
-                                } catch(ex) {}
-                            }
-                        } catch(ex) {}
-                        return response;
-                    });
-                };
+                // Do NOT wrap window.fetch — Android WebView breaks AbortSignal when fetch is
+                // overridden (Newsela login: "Failed to convert value to 'AbortSignal'").
+                // Form submit listener above covers classic login forms.
             })();
         """.replace("\$INTERFACE_NAME", INTERFACE_NAME)
 

@@ -20,6 +20,8 @@ import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebView
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import javax.inject.Inject
 
 /**
@@ -104,7 +106,22 @@ class WebViewFactory @Inject constructor(
             }
 
             updateForPreferences(incognitoMode)
+            installSafeFetchShim()
         }
+    }
+
+    /**
+     * Some analytics SDKs wrap fetch and pass non-native AbortSignal-like objects.
+     * Android WebView then throws:
+     * "Failed to convert value to 'AbortSignal'" — Newsela surfaces this as a generic login error
+     * even after /api/v2/session succeeds. Strip/coerce invalid signals before native fetch.
+     */
+    private fun WebView.installSafeFetchShim() {
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            logger.log(TAG, "DOCUMENT_START_SCRIPT unsupported; skip safe fetch shim")
+            return
+        }
+        WebViewCompat.addDocumentStartJavaScript(this, SAFE_FETCH_SHIM, setOf("*"))
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -225,6 +242,44 @@ class WebViewFactory @Inject constructor(
         const val HEADER_WAP_PROFILE = "X-Wap-Profile"
         private const val HEADER_DNT = "DNT"
         private const val HEADER_SAVEDATA = "Save-Data"
+
+        /**
+         * Runs before page scripts. Keeps a WebView-safe fetch under analytics wrappers:
+         * if RequestInit.signal is not a real AbortSignal, drop it instead of crashing.
+         */
+        private val SAFE_FETCH_SHIM = """
+            (function() {
+                if (window.__lxSafeFetchInstalled) return;
+                window.__lxSafeFetchInstalled = true;
+                var nativeFetch = window.fetch.bind(window);
+                function isAbortSignal(value) {
+                    try {
+                        return typeof AbortSignal !== 'undefined' && value instanceof AbortSignal;
+                    } catch (e) {
+                        return false;
+                    }
+                }
+                function sanitizeInit(init) {
+                    if (init == null || typeof init !== 'object') return init;
+                    if (!('signal' in init) || init.signal == null || isAbortSignal(init.signal)) {
+                        return init;
+                    }
+                    var copy = {};
+                    for (var key in init) {
+                        if (Object.prototype.hasOwnProperty.call(init, key) && key !== 'signal') {
+                            copy[key] = init[key];
+                        }
+                    }
+                    return copy;
+                }
+                window.fetch = function(input, init) {
+                    if (typeof init === 'undefined') {
+                        return nativeFetch(input);
+                    }
+                    return nativeFetch(input, sanitizeInit(init));
+                };
+            })();
+        """.trimIndent()
 
         private val negativeColorArray = floatArrayOf(
             -1.0f, 0f, 0f, 0f, 255f, // red

@@ -27,6 +27,13 @@ object LoginSession {
     private const val KEY_REFRESH_TOKEN = "refresh_token"
     private const val KEY_EXPIRES_AT = "access_token_expires_at"
 
+    /** WebView localStorage keys — prefixed to avoid colliding with third-party sites. */
+    const val LS_SAVE_USER = "lx_saveUser"
+    const val LS_ACCESS_TOKEN = "lx_access_token"
+    const val LS_REFRESH_TOKEN = "lx_refresh_token"
+    const val LS_EXPIRES_AT = "lx_access_token_expires_at"
+    const val LS_BAUTH = "lx_bAuth"
+
     private fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -71,7 +78,8 @@ object LoginSession {
 
     /**
      * Build JS to inject auth tokens into WebView localStorage.
-     * Mimics what MyTodo's auth-util.ts does after login.
+     * Uses lx_*-prefixed keys so we do not collide with third-party SPAs (e.g. Newsela).
+     * Also removes legacy unprefixed keys left by older builds.
      */
     fun buildLocalStorageInjection(context: Context): String? {
         val userId = getUserId(context) ?: return null
@@ -79,13 +87,15 @@ object LoginSession {
         val expiresAt = getTokenExpiresAt(context)
         val refreshToken = getRefreshToken(context)
         return buildString {
-            append("localStorage.setItem('saveUser','$userId');")
-            append("localStorage.setItem('access_token','$accessToken');")
-            append("localStorage.setItem('access_token_expires_at','$expiresAt');")
+            // Drop legacy unprefixed keys that can poison other sites / confuse our web app.
+            append("['saveUser','access_token','access_token_expires_at','refresh_token','bAuth'].forEach(function(k){localStorage.removeItem(k);});")
+            append("localStorage.setItem('$LS_SAVE_USER','$userId');")
+            append("localStorage.setItem('$LS_ACCESS_TOKEN','$accessToken');")
+            append("localStorage.setItem('$LS_EXPIRES_AT','$expiresAt');")
             if (refreshToken != null) {
-                append("localStorage.setItem('refresh_token','$refreshToken');")
+                append("localStorage.setItem('$LS_REFRESH_TOKEN','$refreshToken');")
             }
-            append("localStorage.setItem('bAuth','true');")
+            append("localStorage.setItem('$LS_BAUTH','true');")
         }
     }
 

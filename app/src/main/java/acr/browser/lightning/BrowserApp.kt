@@ -112,9 +112,8 @@ class BrowserApp : Application() {
             leakCanaryUtils.setup()
         }
 
-        if (buildInfo.buildType == BuildType.DEBUG) {
-            WebView.setWebContentsDebuggingEnabled(true)
-        }
+        // Always on so chrome://inspect works while diagnosing site issues (e.g. Newsela).
+        WebView.setWebContentsDebuggingEnabled(true)
     }
 
     override fun onTerminate() {

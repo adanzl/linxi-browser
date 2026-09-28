@@ -66,7 +66,9 @@
                             android:background="?attr/actionBarItemBackground"
                             android:clickable="true"
                             android:focusable="true"
-                            android:gravity="center">
+                            android:gravity="center"
+                            android:nextFocusDown="@id/content_frame"
+                            android:nextFocusRight="@id/search">
 
                             <ImageView
                                 android:id="@+id/home_image_view"
@@ -123,6 +125,8 @@
                                 android:completionThreshold="1"
                                 android:dropDownAnchor="@+id/toolbar_layout"
                                 android:dropDownWidth="match_parent"
+                                android:focusable="true"
+                                android:focusableInTouchMode="true"
                                 android:gravity="start|center_vertical"
                                 android:hint="@string/search_hint"
                                 android:imeOptions="actionGo"
@@ -130,6 +134,9 @@
                                 android:popupElevation="0dp"
                                 android:inputType="textUri"
                                 android:maxLines="1"
+                                android:nextFocusDown="@id/content_frame"
+                                android:nextFocusLeft="@id/home_button"
+                                android:nextFocusRight="@id/search_refresh"
                                 android:selectAllOnFocus="true"
                                 android:textColor="?attr/autoCompleteTitleColor"
                                 android:textColorHint="?attr/autoCompleteUrlColor"
@@ -146,6 +153,8 @@
                                 android:background="?selectableItemBackgroundBorderless"
                                 android:clickable="true"
                                 android:focusable="true"
+                                android:nextFocusDown="@id/content_frame"
+                                android:nextFocusLeft="@id/search"
                                 android:padding="6dp"
                                 app:layout_constraintEnd_toEndOf="parent"
                                 app:layout_constraintTop_toTopOf="parent"
@@ -184,7 +193,8 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:background="@color/primary_color"
-                android:clipChildren="true" />
+                android:clipChildren="true"
+                android:focusable="true" />
 
             <LinearLayout
                 android:id="@+id/find_bar"
@@ -263,7 +273,9 @@
                     android:layout_width="?attr/actionBarSize"
                     android:layout_height="match_parent"
                     android:background="?attr/actionBarItemBackground"
+                    android:clickable="true"
                     android:contentDescription="@string/action_new_tab"
+                    android:focusable="true"
                     android:scaleType="center"
                     app:srcCompat="@drawable/ic_action_tabs" />
 
@@ -302,7 +314,9 @@
                     android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:background="?attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
                     android:contentDescription="@string/action_back"
+                    android:focusable="true"
                     android:scaleType="center"
                     app:srcCompat="@drawable/ic_action_back" />
 
@@ -312,7 +326,9 @@
                     android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:background="?attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
                     android:contentDescription="@string/action_homepage"
+                    android:focusable="true"
                     android:scaleType="center"
                     app:srcCompat="@drawable/ic_action_home" />
 
@@ -322,7 +338,9 @@
                     android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:background="?attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
                     android:contentDescription="@string/action_forward"
+                    android:focusable="true"
                     android:scaleType="center"
                     app:srcCompat="@drawable/ic_action_forward" />
 
@@ -332,7 +350,9 @@
                     android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:background="?attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
                     android:contentDescription="@string/action_new_tab"
+                    android:focusable="true"
                     android:scaleType="center"
                     app:srcCompat="@drawable/ic_action_plus" />
             </LinearLayout>
@@ -363,7 +383,9 @@
                     android:layout_width="?attr/actionBarSize"
                     android:layout_height="match_parent"
                     android:background="?attr/actionBarItemBackground"
+                    android:clickable="true"
                     android:contentDescription="@string/action_back"
+                    android:focusable="true"
                     android:scaleType="center"
                     app:srcCompat="@drawable/ic_action_star" />
 
@@ -401,7 +423,9 @@
                     android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:background="?attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
                     android:contentDescription="@string/dialog_tools_title"
+                    android:focusable="true"
                     android:scaleType="center"
                     app:srcCompat="@drawable/ic_page_tools" />
 
@@ -411,7 +435,9 @@
                     android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:background="?attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
                     android:contentDescription="@string/action_add_bookmark"
+                    android:focusable="true"
                     android:scaleType="center"
                     app:srcCompat="@drawable/state_ic_bookmark" />
             </LinearLayout>
