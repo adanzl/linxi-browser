@@ -100,7 +100,7 @@ class UserPreferencesDataStore @Inject constructor(
     val webRtcEnabled: NonNullPreferenceStore<Boolean> = NonNullPreferenceStore(
         key = booleanPreferencesKey(WEB_RTC),
         dataStore = dataStore,
-        defaultValue = false
+        defaultValue = true
     )
 
     /**
