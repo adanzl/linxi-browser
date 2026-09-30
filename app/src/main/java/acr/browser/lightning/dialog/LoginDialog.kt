@@ -41,7 +41,7 @@ class LoginDialog : DialogFragment() {
     private var callback: LoginCallback? = null
     private var selectedUserName: String = ""
     private var userList: List<UserItem> = emptyList()
-    private var resolvedApiBase: String = REMOTE_API_BASE
+    private var resolvedApiBase: String = LoginSession.REMOTE_API_BASE
 
     data class UserItem(val id: Int, val name: String, val icon: String = "")
 
@@ -107,6 +107,7 @@ class LoginDialog : DialogFragment() {
                     if (result.success) {
                         LoginSession.save(ctx, selectedUserName, result.userId, resolvedApiBase)
                         LoginSession.saveTokens(ctx, result.accessToken, result.refreshToken, result.expiresIn)
+                        LoginSession.bumpSessionRevision(ctx)
                         callback?.onLoginSuccess(selectedUserName)
                         dismiss()
                     } else {
@@ -227,17 +228,17 @@ class LoginDialog : DialogFragment() {
             .readTimeout(PROBE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .build()
         val probeRequest = Request.Builder()
-            .url(LOCAL_ROOT_URL)
+            .url(LoginSession.LOCAL_WEB_ROOT + "/")
             .get()
             .build()
         try {
             probeClient.newCall(probeRequest).execute().use { response ->
                 // Any response (even non-2xx) means the server is reachable
-                LOCAL_API_BASE
+                LoginSession.LOCAL_API_BASE
             }
         } catch (_: Exception) {
             // Connection failed / timeout -> fallback to remote
-            REMOTE_API_BASE
+            LoginSession.REMOTE_API_BASE
         }
     }
 
@@ -299,9 +300,6 @@ class LoginDialog : DialogFragment() {
     }
 
     companion object {
-        private const val LOCAL_ROOT_URL = "http://192.168.50.172:8848/"
-        private const val LOCAL_API_BASE = "http://192.168.50.172:8848/api"
-        private const val REMOTE_API_BASE = "https://leo-zhao.natapp4.cc/api"
         private const val PROBE_TIMEOUT_MS = 500L
         const val TAG = "LoginDialog"
     }

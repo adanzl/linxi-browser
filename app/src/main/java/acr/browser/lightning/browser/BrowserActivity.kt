@@ -86,6 +86,8 @@ import androidx.recyclerview.widget.SimpleItemAnimator
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.isActive
+import org.json.JSONTokener
+import org.json.JSONObject
 import javax.inject.Inject
 
 /**
@@ -151,8 +153,8 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
     // Periodic localStorage scanner: detect user changes from web page
     private var localStorageScanScope: kotlinx.coroutines.CoroutineScope? = null
     private var localStorageScanJob: kotlinx.coroutines.Job? = null
-    /** True once the scan has observed a non-null lx_saveUser in the WebView. */
-    private var webUserSeen = false
+    /** 递增以丢弃页面切换后仍返回的旧 evaluateJavascript 回调。 */
+    private var localStorageScanGeneration = 0L
 
     @MainHandler
     @Inject
@@ -466,11 +468,14 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
         loginDialog.setCallback(object : LoginDialog.LoginCallback {
             override fun onLoginSuccess(username: String) {
                 android.util.Log.i("BrowserActivity", "User $username logged in successfully")
+                LoginSession.setPendingNativeWebOverride(this@BrowserActivity, true)
                 startLocalStorageScan()
-                // Inject tokens only on our web app origin — never into third-party sites (e.g. Newsela).
                 val webView = tabPager.getCurrentWebView()
-                if (webView != null && !webUserSeen && isOurWebAppUrl(webView.url)) {
-                    injectLocalStorageIfNeeded(webView)
+                if (webView != null && LoginSession.isOurWebAppUrl(webView.url)) {
+                    pushNativeSessionToWeb(
+                        webView,
+                        LoginSession.AtomicInjectOptions(forceOverride = true),
+                    )
                 }
             }
         })
@@ -484,7 +489,7 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
      */
     private fun startLocalStorageScan() {
         stopLocalStorageScan()
-        webUserSeen = false
+        localStorageScanGeneration++
         localStorageScanScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
         localStorageScanJob = localStorageScanScope?.launch {
             while (isActive) {
@@ -507,97 +512,142 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
      * Only treats null as "logged out" after we've previously seen a non-null value.
      * Also injects auth tokens into localStorage if the web app doesn't have them yet.
      */
+    private sealed class WebSessionReadOutcome {
+        data class Present(val snapshot: LoginSession.WebSessionSnapshot) : WebSessionReadOutcome()
+        data class Empty(val webLogoutSignal: Boolean) : WebSessionReadOutcome()
+        object Failed : WebSessionReadOutcome()
+    }
+
     private fun checkLocalStorageUser() {
         val webView = tabPager.getCurrentWebView() ?: return
-        if (!isOurWebAppUrl(webView.url)) return
+        if (!LoginSession.isOurWebAppUrl(webView.url)) return
 
-        webView.evaluateJavascript("localStorage.getItem('${LoginSession.LS_SAVE_USER}')") { result ->
-            val webUserId = result?.removeSurrounding("\"")?.takeIf { it != "null" && it.isNotEmpty() }
-            val nativeUserId = LoginSession.getUserId(this@BrowserActivity)
-            if (webUserId != null) {
-                webUserSeen = true
-                if (webUserId != nativeUserId) {
-                    android.util.Log.i("BrowserActivity", "User changed in web: $nativeUserId -> $webUserId")
-                    onWebUserChanged(webUserId)
-                } else {
-                    // Same user — but check if native token is fresher than web token
-                    // (e.g. after app restart the web localStorage has an expired token)
-                    maybeRefreshWebToken(webView)
+        if (LoginSession.isPendingNativeWebOverride(this)) {
+            pushNativeSessionToWeb(
+                webView,
+                LoginSession.AtomicInjectOptions(forceOverride = true),
+            )
+            return
+        }
+
+        val scanId = ++localStorageScanGeneration
+        val expectedUrl = webView.url
+
+        webView.evaluateJavascript(LoginSession.buildReadWebSessionJs()) { result ->
+            if (scanId != localStorageScanGeneration) return@evaluateJavascript
+            val currentWebView = tabPager.getCurrentWebView()
+            if (currentWebView !== webView || currentWebView.url != expectedUrl) return@evaluateJavascript
+
+            when (val outcome = parseWebSessionSnapshot(result)) {
+                is WebSessionReadOutcome.Failed -> {
+                    android.util.Log.w("BrowserActivity", "Web session read failed, skipping sync")
                 }
-            } else if (webUserSeen && nativeUserId != null) {
-                android.util.Log.i("BrowserActivity", "User logged out in web page")
-                onWebUserLoggedOut()
-            } else if (!webUserSeen && LoginSession.hasSavedUser(this@BrowserActivity)) {
-                // Web app hasn't logged in yet, native session exists — inject tokens
-                injectLocalStorageIfNeeded(webView)
+                is WebSessionReadOutcome.Present -> {
+                    val snapshot = outcome.snapshot
+                    val nativeUserId = LoginSession.getUserId(this@BrowserActivity)
+                    LoginSession.resolveWebAppOrigin(expectedUrl)?.let { origin ->
+                        LoginSession.markWebUserSeenOnOrigin(this@BrowserActivity, origin)
+                    }
+                    val webUserId = snapshot.userId
+                    if (webUserId != nativeUserId) {
+                        android.util.Log.i("BrowserActivity", "User changed in web: $nativeUserId -> $webUserId")
+                        onWebSessionChanged(snapshot)
+                    } else if (LoginSession.webTokensDifferFromNative(this@BrowserActivity, snapshot)) {
+                        val nativeExpires = LoginSession.getTokenExpiresAt(this@BrowserActivity)
+                        if (nativeExpires > snapshot.expiresAtMillis) {
+                            android.util.Log.i(
+                                "BrowserActivity",
+                                "Native token fresher than web (native=$nativeExpires, web=${snapshot.expiresAtMillis}), pushing to web"
+                            )
+                            pushNativeSessionToWeb(
+                                webView,
+                                LoginSession.AtomicInjectOptions(
+                                    forceOverride = false,
+                                    webGuard = snapshot,
+                                ),
+                            )
+                        } else {
+                            LoginSession.syncTokensFromWeb(this@BrowserActivity, snapshot)
+                            android.util.Log.i("BrowserActivity", "Synced tokens from web to native")
+                        }
+                    }
+                }
+                is WebSessionReadOutcome.Empty -> {
+                    val nativeUserId = LoginSession.getUserId(this@BrowserActivity)
+                    val origin = LoginSession.resolveWebAppOrigin(expectedUrl)
+                    val treatAsLogout = outcome.webLogoutSignal ||
+                        (origin != null && LoginSession.hasWebUserSeenOnOrigin(this@BrowserActivity, origin))
+                    if (treatAsLogout && nativeUserId != null) {
+                        android.util.Log.i("BrowserActivity", "User logged out in web page (origin=$origin)")
+                        onWebUserLoggedOut()
+                    } else if (LoginSession.hasSavedUser(this@BrowserActivity)) {
+                        injectLocalStorageIfNeeded(webView)
+                    }
+                }
             }
         }
     }
 
-    /**
-     * Only our first-party web app should receive native auth tokens in localStorage.
-     * Third-party sites (Newsela, Google SSO, etc.) share the same WebView process but
-     * different origins — injecting there poisons their auth state.
-     */
-    private fun isOurWebAppUrl(url: String?): Boolean {
-        if (url.isNullOrBlank()) return false
-        val apiBase = LoginSession.getApiBase(this) ?: return false
-        val webAppRoot = apiBase.removeSuffix("/api").trimEnd('/')
-        return webAppRoot.isNotEmpty() && url.startsWith(webAppRoot)
+    private fun parseWebSessionSnapshot(result: String?): WebSessionReadOutcome {
+        if (result.isNullOrBlank() || result == "null") return WebSessionReadOutcome.Failed
+        return try {
+            val jsonStr = JSONTokener(result).nextValue() as String
+            val json = JSONObject(jsonStr)
+            fun opt(key: String): String? =
+                json.optString(key).takeIf { it.isNotEmpty() && it != "null" }
+            val snapshot = LoginSession.WebSessionSnapshot(
+                userId = opt(LoginSession.LS_SAVE_USER),
+                accessToken = opt(LoginSession.LS_ACCESS_TOKEN),
+                refreshToken = opt(LoginSession.LS_REFRESH_TOKEN),
+                expiresAtMillis = opt(LoginSession.LS_EXPIRES_AT)?.toLongOrNull() ?: 0L,
+                bAuth = opt(LoginSession.LS_BAUTH) == "true",
+                sessionRevision = opt(LoginSession.LS_SESSION_REVISION),
+            )
+            val webLogoutSignal = opt(LoginSession.LS_WEB_LOGOUT_SIGNAL) == "1"
+            if (snapshot.hasLoggedInUser()) WebSessionReadOutcome.Present(snapshot)
+            else WebSessionReadOutcome.Empty(webLogoutSignal)
+        } catch (e: Exception) {
+            android.util.Log.w("BrowserActivity", "Failed to parse web session: ${e.message}")
+            WebSessionReadOutcome.Failed
+        }
     }
 
     private fun injectLocalStorageIfNeeded(webView: android.webkit.WebView) {
-        if (!isOurWebAppUrl(webView.url)) {
+        if (!LoginSession.isOurWebAppUrl(webView.url)) {
             android.util.Log.i(
                 "BrowserActivity",
                 "Skip token inject: url=${webView.url} is not our web app"
             )
             return
         }
-        webView.evaluateJavascript("localStorage.getItem('${LoginSession.LS_ACCESS_TOKEN}')") { result ->
-            val hasToken = result != null && result != "null" && result.removeSurrounding("\"").isNotEmpty()
-            if (!hasToken) {
-                val js = LoginSession.buildLocalStorageInjection(this@BrowserActivity)
-                if (js != null) {
-                    android.util.Log.i("BrowserActivity", "Injecting localStorage auth tokens and reloading page")
-                    webView.evaluateJavascript(js) { webView.reload() }
-                }
-            }
+        pushNativeSessionToWeb(
+            webView,
+            LoginSession.AtomicInjectOptions(forceOverride = false),
+        )
+    }
+
+    private fun pushNativeSessionToWeb(
+        webView: android.webkit.WebView,
+        injectOptions: LoginSession.AtomicInjectOptions,
+    ) {
+        if (!LoginSession.isOurWebAppUrl(webView.url)) return
+        val pageUrl = webView.url ?: return
+        android.util.Log.i(
+            "BrowserActivity",
+            "Pushing native session into WebView (options=$injectOptions)"
+        )
+        LoginSession.performVerifiedNativeInject(this, webView, pageUrl, injectOptions) {
+            webView.reload()
         }
     }
 
     /**
-     * Check if the native token has a longer validity than the web token.
-     * If so, re-inject tokens and reload (handles app restart with expired web token).
+     * 网页切换账号或首次以网页会话为准：整组替换原生凭证并刷新缓存页。
      */
-    private fun maybeRefreshWebToken(webView: android.webkit.WebView) {
-        if (!isOurWebAppUrl(webView.url)) return
-        val nativeExpiresAt = LoginSession.getTokenExpiresAt(this@BrowserActivity)
-        webView.evaluateJavascript("localStorage.getItem('${LoginSession.LS_EXPIRES_AT}')") { result ->
-            val webExpiresAt = result?.removeSurrounding("\"")?.toLongOrNull() ?: 0L
-            // Re-inject if native token is fresher, or if native has a token but web doesn't
-            val shouldRefresh = nativeExpiresAt > webExpiresAt
-                    || (LoginSession.getAccessToken(this@BrowserActivity) != null && webExpiresAt == 0L)
-            if (shouldRefresh) {
-                val js = LoginSession.buildLocalStorageInjection(this@BrowserActivity)
-                if (js != null) {
-                    android.util.Log.i("BrowserActivity", "Re-injecting tokens (native=$nativeExpiresAt, web=$webExpiresAt)")
-                    webView.evaluateJavascript(js) { webView.reload() }
-                }
-            }
-        }
-    }
-
-    /**
-     * Called when the web page switched to a different user.
-     * Update LoginSession and invalidate cached homepage/bookmarks.
-     */
-    private fun onWebUserChanged(newUserId: String) {
-        val username = LoginSession.getUsername(this) ?: ""
-        val apiBase = LoginSession.getApiBase(this) ?: ""
-        LoginSession.save(this, username, newUserId, apiBase)
+    private fun onWebSessionChanged(snapshot: LoginSession.WebSessionSnapshot) {
+        LoginSession.replaceSessionFromWeb(this, snapshot)
         invalidateCachedPages()
-        android.util.Log.i("BrowserActivity", "Updated LoginSession userId=$newUserId, caches invalidated")
+        android.util.Log.i("BrowserActivity", "Replaced native session from web userId=${snapshot.userId}")
     }
 
     /**
@@ -605,6 +655,7 @@ abstract class BrowserActivity : ThemableBrowserActivity() {
      */
     private fun onWebUserLoggedOut() {
         stopLocalStorageScan()
+        LoginSession.setPendingNativeWebOverride(this, false)
         LoginSession.clear(this)
         invalidateCachedPages()
         showLoginDialog()

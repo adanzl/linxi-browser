@@ -211,20 +211,17 @@ class TabWebViewClient @AssistedInject constructor(
     private fun tryAutoLoginInject(view: WebView, url: String) {
         val ctx = view.context
         if (!LoginSession.hasSavedUser(ctx)) return
-        val apiBase = LoginSession.getApiBase(ctx) ?: return
-        val webAppRoot = apiBase.removeSuffix("/api").trimEnd('/')
-        if (!url.startsWith(webAppRoot)) return
+        if (!LoginSession.isOurWebAppUrl(url)) return
 
-        // Check if WebView already has tokens — if so, no need to inject (avoids reload loop)
-        view.evaluateJavascript("localStorage.getItem('${LoginSession.LS_ACCESS_TOKEN}')") { result ->
-            val hasToken = result != null && result != "null" && result.removeSurrounding("\"").isNotEmpty()
-            if (!hasToken) {
-                val js = LoginSession.buildLocalStorageInjection(ctx) ?: return@evaluateJavascript
-                logger.log(TAG, "Auto-login: injecting tokens into WebView for url=$url")
-                view.evaluateJavascript(js) { view.reload() }
-            } else {
-                logger.log(TAG, "Auto-login: WebView already has tokens, skipping injection for url=$url")
-            }
+        val forceOverride = LoginSession.isPendingNativeWebOverride(ctx)
+        LoginSession.performVerifiedNativeInject(
+            ctx,
+            view,
+            url,
+            LoginSession.AtomicInjectOptions(forceOverride = forceOverride),
+        ) {
+            logger.log(TAG, "Auto-login: atomic inject succeeded for url=$url force=$forceOverride")
+            view.reload()
         }
     }
 
